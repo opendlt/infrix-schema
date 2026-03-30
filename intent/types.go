@@ -26,6 +26,7 @@ const (
 	GoalSettlement      IntentGoalType = "SETTLEMENT"
 	GoalEscrowCreate      IntentGoalType = "ESCROW_CREATE"
 	GoalObjectTransition  IntentGoalType = "OBJECT_TRANSITION"
+	GoalPolicyChange      IntentGoalType = "POLICY_CHANGE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -38,6 +39,7 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalCredentialIssue: true, GoalVaultCreate: true, GoalSettlement: true,
 	GoalEscrowCreate:     true,
 	GoalObjectTransition: true,
+	GoalPolicyChange:     true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
