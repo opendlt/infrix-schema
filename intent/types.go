@@ -13,6 +13,19 @@ const (
 	GoalBridge           IntentGoalType = "BRIDGE"
 	GoalCompound         IntentGoalType = "COMPOUND"
 	GoalCustom           IntentGoalType = "CUSTOM"
+
+	// System-level intent types (protocol operations)
+	GoalObjectCreate    IntentGoalType = "OBJECT_CREATE"
+	GoalObjectMutate    IntentGoalType = "OBJECT_MUTATE"
+	GoalTransfer        IntentGoalType = "TRANSFER"
+	GoalPolicyBind      IntentGoalType = "POLICY_BIND"
+	GoalCapabilityGrant IntentGoalType = "CAPABILITY_GRANT"
+	GoalWorkflowStart   IntentGoalType = "WORKFLOW_START"
+	GoalCredentialIssue IntentGoalType = "CREDENTIAL_ISSUE"
+	GoalVaultCreate     IntentGoalType = "VAULT_CREATE"
+	GoalSettlement      IntentGoalType = "SETTLEMENT"
+	GoalEscrowCreate      IntentGoalType = "ESCROW_CREATE"
+	GoalObjectTransition  IntentGoalType = "OBJECT_TRANSITION"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -20,6 +33,11 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalConvert: true, GoalEarnYield: true, GoalBorrow: true,
 	GoalProvideLiquidity: true, GoalSwap: true, GoalStake: true,
 	GoalBridge: true, GoalCompound: true, GoalCustom: true,
+	GoalObjectCreate: true, GoalObjectMutate: true, GoalTransfer: true,
+	GoalPolicyBind: true, GoalCapabilityGrant: true, GoalWorkflowStart: true,
+	GoalCredentialIssue: true, GoalVaultCreate: true, GoalSettlement: true,
+	GoalEscrowCreate:     true,
+	GoalObjectTransition: true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
