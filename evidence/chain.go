@@ -77,6 +77,12 @@ func (b *Builder) AddJSON(linkType string, value any, artifactRef string) {
 	b.AddLink(linkType, data, artifactRef)
 }
 
+// AddGhostEvidence adds a ghost simulation evidence link to the chain.
+// The ghost evidence is serialized as JSON and linked with type "ghost_simulation".
+func (b *Builder) AddGhostEvidence(evidence any) {
+	b.AddJSON("ghost_simulation", evidence, "ghost-sim-"+b.intentID)
+}
+
 // Build finalizes the chain, computing the ChainHash from all link hashes.
 func (b *Builder) Build(stateRoot [32]byte) *EvidenceChain {
 	chain := &EvidenceChain{
