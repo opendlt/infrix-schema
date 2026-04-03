@@ -89,6 +89,12 @@ func (b *Builder) AddComplianceViolation(violation any, invariantID string) {
 	b.AddJSON("compliance_violation", violation, "violation-"+invariantID)
 }
 
+// AddForensicAnalysis adds a forensic analysis evidence link to the chain.
+// The forensic report is serialized as JSON and linked with type "forensic_analysis".
+func (b *Builder) AddForensicAnalysis(report any, forensicID string) {
+	b.AddJSON("forensic_analysis", report, "forensic-"+forensicID)
+}
+
 // Build finalizes the chain, computing the ChainHash from all link hashes.
 func (b *Builder) Build(stateRoot [32]byte) *EvidenceChain {
 	chain := &EvidenceChain{
