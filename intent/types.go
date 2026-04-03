@@ -27,7 +27,8 @@ const (
 	GoalEscrowCreate      IntentGoalType = "ESCROW_CREATE"
 	GoalObjectTransition  IntentGoalType = "OBJECT_TRANSITION"
 	GoalPolicyChange      IntentGoalType = "POLICY_CHANGE"
-	GoalContractUpgrade   IntentGoalType = "CONTRACT_UPGRADE"
+	GoalContractUpgrade     IntentGoalType = "CONTRACT_UPGRADE"
+	GoalPatchPropagation    IntentGoalType = "PATCH_PROPAGATION"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -41,7 +42,8 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalEscrowCreate:     true,
 	GoalObjectTransition: true,
 	GoalPolicyChange:     true,
-	GoalContractUpgrade:  true,
+	GoalContractUpgrade:    true,
+	GoalPatchPropagation:   true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
