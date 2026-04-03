@@ -83,6 +83,12 @@ func (b *Builder) AddGhostEvidence(evidence any) {
 	b.AddJSON("ghost_simulation", evidence, "ghost-sim-"+b.intentID)
 }
 
+// AddComplianceViolation adds a compliance violation evidence link.
+// The violation is serialized as JSON and linked with type "compliance_violation".
+func (b *Builder) AddComplianceViolation(violation any, invariantID string) {
+	b.AddJSON("compliance_violation", violation, "violation-"+invariantID)
+}
+
 // Build finalizes the chain, computing the ChainHash from all link hashes.
 func (b *Builder) Build(stateRoot [32]byte) *EvidenceChain {
 	chain := &EvidenceChain{
