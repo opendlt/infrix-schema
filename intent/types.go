@@ -29,6 +29,7 @@ const (
 	GoalPolicyChange      IntentGoalType = "POLICY_CHANGE"
 	GoalContractUpgrade     IntentGoalType = "CONTRACT_UPGRADE"
 	GoalPatchPropagation    IntentGoalType = "PATCH_PROPAGATION"
+	GoalRevertTransaction   IntentGoalType = "REVERT_TRANSACTION"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -44,6 +45,7 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalPolicyChange:     true,
 	GoalContractUpgrade:    true,
 	GoalPatchPropagation:   true,
+	GoalRevertTransaction:  true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
