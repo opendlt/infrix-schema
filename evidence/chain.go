@@ -15,6 +15,16 @@ import (
 	"time"
 )
 
+// Evidence link types for capability operations (Phase G09-12).
+const (
+	EvidenceLinkCapabilityGrant    = "capability_grant"
+	EvidenceLinkCapabilityRevoke   = "capability_revoke"
+	EvidenceLinkCapabilityExercise = "capability_exercise"
+	EvidenceLinkCapabilityDenied   = "capability_denied"
+	EvidenceLinkGrantState         = "grant_state_snapshot"
+	EvidenceLinkDelegationChain    = "delegation_chain"
+)
+
 // EvidenceChain is a hash-linked sequence of artifacts produced during
 // intent execution. Each link's PrevHash references the previous link's
 // ContentHash, forming a tamper-evident chain. The ChainHash is the
