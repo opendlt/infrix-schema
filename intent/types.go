@@ -30,6 +30,12 @@ const (
 	GoalContractUpgrade     IntentGoalType = "CONTRACT_UPGRADE"
 	GoalPatchPropagation    IntentGoalType = "PATCH_PROPAGATION"
 	GoalRevertTransaction   IntentGoalType = "REVERT_TRANSACTION"
+
+	// Role governance intent types (G-10 Phase 9)
+	GoalRoleAssign    IntentGoalType = "ROLE_ASSIGN"
+	GoalRoleRevoke    IntentGoalType = "ROLE_REVOKE"
+	GoalRoleSuspend   IntentGoalType = "ROLE_SUSPEND"
+	GoalRoleEmergency IntentGoalType = "ROLE_EMERGENCY"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -46,6 +52,10 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalContractUpgrade:    true,
 	GoalPatchPropagation:   true,
 	GoalRevertTransaction:  true,
+	GoalRoleAssign:         true,
+	GoalRoleRevoke:         true,
+	GoalRoleSuspend:        true,
+	GoalRoleEmergency:      true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
