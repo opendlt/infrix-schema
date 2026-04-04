@@ -30,6 +30,47 @@ const (
 	EvidenceLinkSoDViolation = "sod_violation"
 )
 
+// Evidence link types for governed role lifecycle (Phase G10-13).
+//
+// These types capture role-related artifacts produced during governed
+// execution so auditors can reconstruct who held which roles, what
+// separation-of-duties checks were performed, and why emergency grants
+// were issued — all without replaying the full block history.
+const (
+	// EvidenceLinkRoleState snapshots every active role held by an identity
+	// at execution time.
+	EvidenceLinkRoleState = "role_state"
+	// EvidenceLinkRoleAssignment records a RoleBinding that was created as
+	// part of a governed intent.
+	EvidenceLinkRoleAssignment = "role_assignment"
+	// EvidenceLinkRoleRevocation records a RoleBinding that was revoked as
+	// part of a governed intent.
+	EvidenceLinkRoleRevocation = "role_revocation"
+	// EvidenceLinkRoleSoDCheck captures the result of a separation-of-duties
+	// evaluation performed during approval collection.
+	EvidenceLinkRoleSoDCheck = "role_sod_check"
+	// EvidenceLinkRoleEmergencyGrant records an emergency role grant along
+	// with its justification for after-the-fact review.
+	EvidenceLinkRoleEmergencyGrant = "role_emergency_grant"
+)
+
+// RoleSnapshot is a minimal projection of a RoleBinding captured inside a
+// role_state evidence link. It intentionally avoids importing the role or
+// objects packages to keep the evidence package dependency-free.
+type RoleSnapshot struct {
+	BindingID string `json:"bindingID"`
+	RoleName  string `json:"roleName"`
+	Scope     string `json:"scope"`
+	State     string `json:"state"`
+}
+
+// RoleSoDApprover identifies a single approver inside a role_sod_check
+// evidence payload.
+type RoleSoDApprover struct {
+	Identity string `json:"identity"`
+	Role     string `json:"role"`
+}
+
 // EvidenceChain is a hash-linked sequence of artifacts produced during
 // intent execution. Each link's PrevHash references the previous link's
 // ContentHash, forming a tamper-evident chain. The ChainHash is the
@@ -123,6 +164,71 @@ func (b *Builder) AddSoDViolation(identity, attemptedRole, conflictingRole, conf
 		"conflictingBindingID": conflictingBindingID,
 	}
 	b.AddJSON(EvidenceLinkSoDViolation, payload, "role_binding://"+conflictingBindingID)
+}
+
+// AddRoleState records a snapshot of all active roles held by the given
+// identity at execution time (Phase G10-13). The blockHeight is captured
+// alongside the snapshot so auditors can correlate with the L0 chain.
+func (b *Builder) AddRoleState(identity string, activeRoles []RoleSnapshot, blockHeight uint64) {
+	payload := map[string]any{
+		"identity":    identity,
+		"activeRoles": activeRoles,
+		"blockHeight": blockHeight,
+	}
+	b.AddJSON(EvidenceLinkRoleState, payload, "role_state://"+identity)
+}
+
+// AddRoleAssignment records a RoleBinding that was created through a
+// governed intent (Phase G10-13). The fields map should mirror the fields
+// written to the RoleBinding object so the evidence is self-contained.
+func (b *Builder) AddRoleAssignment(bindingID string, fields map[string]any) {
+	payload := map[string]any{
+		"bindingID": bindingID,
+		"fields":    fields,
+	}
+	b.AddJSON(EvidenceLinkRoleAssignment, payload, "role_binding://"+bindingID)
+}
+
+// AddRoleRevocation records a RoleBinding revocation performed through a
+// governed intent (Phase G10-13).
+func (b *Builder) AddRoleRevocation(bindingID, revoker, reason string) {
+	payload := map[string]any{
+		"bindingID": bindingID,
+		"revoker":   revoker,
+		"reason":    reason,
+	}
+	b.AddJSON(EvidenceLinkRoleRevocation, payload, "role_binding://"+bindingID)
+}
+
+// AddRoleSoDCheck records the result of a separation-of-duties evaluation
+// performed as part of an approval stage with EnforceSeparationOfDuties
+// (Phase G10-13). The sodSatisfied flag captures whether the check passed.
+func (b *Builder) AddRoleSoDCheck(identity string, requiredRoles []string, approvers []RoleSoDApprover, sodSatisfied bool) {
+	payload := map[string]any{
+		"identity":      identity,
+		"requiredRoles": requiredRoles,
+		"approvers":     approvers,
+		"sodSatisfied":  sodSatisfied,
+	}
+	b.AddJSON(EvidenceLinkRoleSoDCheck, payload, "role_sod_check://"+identity)
+}
+
+// AddRoleEmergencyGrant records an emergency role grant along with its
+// justification (Phase G10-13). Emergency grants bypass some normal
+// approvals and therefore require after-the-fact evidence for audit.
+func (b *Builder) AddRoleEmergencyGrant(bindingID string, fields map[string]any, justification string) {
+	payload := map[string]any{
+		"bindingID":     bindingID,
+		"fields":        fields,
+		"justification": justification,
+	}
+	b.AddJSON(EvidenceLinkRoleEmergencyGrant, payload, "role_binding://"+bindingID)
+}
+
+// Links returns the accumulated evidence links. Primarily used by tests and
+// callers that need to inspect the chain prior to Build().
+func (b *Builder) Links() []EvidenceLink {
+	return b.links
 }
 
 // Build finalizes the chain, computing the ChainHash from all link hashes.
