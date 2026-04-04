@@ -25,6 +25,11 @@ const (
 	EvidenceLinkDelegationChain    = "delegation_chain"
 )
 
+// Evidence link types for role operations (Phase G10-7).
+const (
+	EvidenceLinkSoDViolation = "sod_violation"
+)
+
 // EvidenceChain is a hash-linked sequence of artifacts produced during
 // intent execution. Each link's PrevHash references the previous link's
 // ContentHash, forming a tamper-evident chain. The ChainHash is the
@@ -103,6 +108,21 @@ func (b *Builder) AddComplianceViolation(violation any, invariantID string) {
 // The forensic report is serialized as JSON and linked with type "forensic_analysis".
 func (b *Builder) AddForensicAnalysis(report any, forensicID string) {
 	b.AddJSON("forensic_analysis", report, "forensic-"+forensicID)
+}
+
+// AddSoDViolation records a separation-of-duties violation as an evidence
+// link (G-10 Phase 7). It captures the identity attempting the action, the
+// role they tried to take on, the conflicting role they already hold, and
+// the binding ID of that conflicting role. The artifact reference points to
+// the blocking binding so auditors can navigate directly to it.
+func (b *Builder) AddSoDViolation(identity, attemptedRole, conflictingRole, conflictingBindingID string) {
+	payload := map[string]any{
+		"identity":             identity,
+		"attemptedRole":        attemptedRole,
+		"conflictingRole":      conflictingRole,
+		"conflictingBindingID": conflictingBindingID,
+	}
+	b.AddJSON(EvidenceLinkSoDViolation, payload, "role_binding://"+conflictingBindingID)
 }
 
 // Build finalizes the chain, computing the ChainHash from all link hashes.
