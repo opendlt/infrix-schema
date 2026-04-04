@@ -12,8 +12,18 @@ package evidence
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 )
+
+// StateRootProvider returns the current Merkle state root. Implemented by
+// pkg/state.StateManager. The evidence package declares this interface
+// locally so it can capture a real state root at Build() time without
+// importing pkg/state (which would create an import cycle).
+type StateRootProvider interface {
+	Root() [32]byte
+}
 
 // Evidence link types for capability operations (Phase G09-12).
 const (
@@ -248,28 +258,57 @@ func (b *Builder) Build(stateRoot [32]byte) *EvidenceChain {
 	return chain
 }
 
-// Verify checks that each link's PrevHash matches the previous link's
-// ContentHash. This is a structural integrity check — it does not verify
-// the content of the artifacts themselves.
-func Verify(chain *EvidenceChain) bool {
+// VerifyChainIntegrity checks the structural integrity of an evidence chain.
+// It returns nil if the chain is valid, or a descriptive error identifying
+// the first structural failure (nil chain, broken PrevHash link, or
+// mismatched ChainHash). It does NOT verify the content of the artifacts
+// themselves — only the cryptographic linking between links and the
+// top-level chain hash.
+func VerifyChainIntegrity(chain *EvidenceChain) error {
+	if chain == nil {
+		return errors.New("evidence: chain is nil")
+	}
 	if len(chain.Links) == 0 {
-		return true
+		return nil // empty chain is trivially valid
 	}
-	// First link's PrevHash should be zero.
+
+	// First link's PrevHash must be zero (genesis).
 	if chain.Links[0].PrevHash != [32]byte{} {
-		return false
+		return fmt.Errorf("evidence: link[0] PrevHash is non-zero (expected genesis)")
 	}
+
+	// Each subsequent link's PrevHash must equal the previous link's ContentHash.
 	for i := 1; i < len(chain.Links); i++ {
 		if chain.Links[i].PrevHash != chain.Links[i-1].ContentHash {
-			return false
+			return fmt.Errorf("evidence: link[%d] PrevHash mismatch: expected %x, got %x",
+				i, chain.Links[i-1].ContentHash, chain.Links[i].PrevHash)
 		}
 	}
-	// Verify ChainHash.
+
+	// Verify ChainHash = SHA256(link1.ContentHash || link2.ContentHash || ...).
 	h := sha256.New()
 	for _, link := range chain.Links {
 		h.Write(link.ContentHash[:])
 	}
 	var expected [32]byte
 	copy(expected[:], h.Sum(nil))
-	return chain.ChainHash == expected
+	if chain.ChainHash != expected {
+		return fmt.Errorf("evidence: ChainHash mismatch: expected %x, got %x",
+			expected, chain.ChainHash)
+	}
+
+	return nil
+}
+
+// Verify checks chain structural integrity and returns true if the chain is
+// valid. Deprecated: use VerifyChainIntegrity which returns a descriptive
+// error identifying the specific failure. Retained for backward
+// compatibility with existing callers.
+func Verify(chain *EvidenceChain) bool {
+	if chain == nil {
+		// Preserve legacy semantics: the original Verify panicked on nil
+		// via chain.Links access. New behaviour: treat nil as invalid.
+		return false
+	}
+	return VerifyChainIntegrity(chain) == nil
 }
