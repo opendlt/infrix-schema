@@ -91,6 +91,18 @@ type EvidenceChain struct {
 	StateRoot [32]byte       `json:"stateRoot"`
 	ChainHash [32]byte       `json:"chainHash"`
 	CreatedAt time.Time      `json:"createdAt"`
+
+	// G-14 Phase G14-12: anchor reference. Set by the orchestrator
+	// once the chain's ChainHash has been anchored to L0 via an
+	// AnchoredRecord. AnchorStatus mirrors the AnchoredRecord state
+	// machine ("pending" | "confirmed" | "verified" | "failed") so
+	// auditors can tell whether the anchor has been independently
+	// verified against Accumulate. AnchoredAt is the wall-clock time
+	// at which the status was last updated; it is zero when the chain
+	// has not yet been anchored.
+	AnchorID     string    `json:"anchorId,omitempty"`
+	AnchorStatus string    `json:"anchorStatus,omitempty"`
+	AnchoredAt   time.Time `json:"anchoredAt,omitzero"`
 }
 
 // EvidenceLink is a single artifact in the evidence chain.
