@@ -24,6 +24,7 @@ const (
 	GoalCredentialIssue IntentGoalType = "CREDENTIAL_ISSUE"
 	GoalVaultCreate     IntentGoalType = "VAULT_CREATE"
 	GoalSettlement      IntentGoalType = "SETTLEMENT"
+	GoalSettlementNetting IntentGoalType = "SETTLEMENT_NETTING"
 	GoalEscrowCreate      IntentGoalType = "ESCROW_CREATE"
 	GoalObjectTransition  IntentGoalType = "OBJECT_TRANSITION"
 	GoalPolicyChange      IntentGoalType = "POLICY_CHANGE"
@@ -46,7 +47,8 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalObjectCreate: true, GoalObjectMutate: true, GoalTransfer: true,
 	GoalPolicyBind: true, GoalCapabilityGrant: true, GoalWorkflowStart: true,
 	GoalCredentialIssue: true, GoalVaultCreate: true, GoalSettlement: true,
-	GoalEscrowCreate:     true,
+	GoalSettlementNetting: true,
+	GoalEscrowCreate:      true,
 	GoalObjectTransition: true,
 	GoalPolicyChange:     true,
 	GoalContractUpgrade:    true,
