@@ -214,6 +214,13 @@ type EvidenceBundle struct {
 	ExpiresAt uint64      `json:"expiresAt,omitempty"` // Unix timestamp, 0 = no expiry
 	CreatedAt time.Time   `json:"createdAt"`
 	UpdatedAt time.Time   `json:"updatedAt"`
+
+	// AuditEventIDs is an optional list of audit event IDs (from
+	// pkg/audit) that correspond to this bundle's lifecycle events.
+	// Phase G-11.13 uses this for cross-reference drill-down from the
+	// evidence view into the audit log without copying any audit
+	// payload into the bundle itself.
+	AuditEventIDs []string `json:"auditEventIds,omitempty"`
 }
 
 // ComputeBundleHash computes the SHA256 hash of the bundle's immutable
