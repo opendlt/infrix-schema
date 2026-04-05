@@ -37,6 +37,10 @@ const (
 	GoalRoleRevoke    IntentGoalType = "ROLE_REVOKE"
 	GoalRoleSuspend   IntentGoalType = "ROLE_SUSPEND"
 	GoalRoleEmergency IntentGoalType = "ROLE_EMERGENCY"
+
+	// Disclosure governance intent types (G-13 Phase 9)
+	GoalDisclosureGrant  IntentGoalType = "DISCLOSURE_GRANT"
+	GoalDisclosureRevoke IntentGoalType = "DISCLOSURE_REVOKE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -58,6 +62,8 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalRoleRevoke:         true,
 	GoalRoleSuspend:        true,
 	GoalRoleEmergency:      true,
+	GoalDisclosureGrant:    true,
+	GoalDisclosureRevoke:   true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
