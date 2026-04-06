@@ -41,6 +41,19 @@ const (
 	// Disclosure governance intent types (G-13 Phase 9)
 	GoalDisclosureGrant  IntentGoalType = "DISCLOSURE_GRANT"
 	GoalDisclosureRevoke IntentGoalType = "DISCLOSURE_REVOKE"
+
+	// Contract lifecycle (Phase 4 — all contract ops enter through intent)
+	GoalContractDeploy IntentGoalType = "CONTRACT_DEPLOY"
+	GoalContractCall   IntentGoalType = "CONTRACT_CALL"
+
+	// Swarm operations (Phase 4 — governable multi-contract coordination)
+	GoalSwarmCreate     IntentGoalType = "SWARM_CREATE"
+	GoalSwarmJoin       IntentGoalType = "SWARM_JOIN"
+	GoalSwarmCoordinate IntentGoalType = "SWARM_COORDINATE"
+	GoalSwarmDissolve   IntentGoalType = "SWARM_DISSOLVE"
+
+	// Shape transitions (Phase 4 — governable adaptive contracts)
+	GoalShapeTransition IntentGoalType = "SHAPE_TRANSITION"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -64,6 +77,13 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalRoleEmergency:      true,
 	GoalDisclosureGrant:    true,
 	GoalDisclosureRevoke:   true,
+	GoalContractDeploy:     true,
+	GoalContractCall:       true,
+	GoalSwarmCreate:        true,
+	GoalSwarmJoin:          true,
+	GoalSwarmCoordinate:    true,
+	GoalSwarmDissolve:      true,
+	GoalShapeTransition:    true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
