@@ -12,6 +12,27 @@ import (
 	"time"
 )
 
+// TRUTH HIERARCHY (canonical, do not reorganize without architectural review):
+//
+// 1. AnchoredRecord  -- L0-verified, immutable proof that an artifact was written to Accumulate.
+//                       This is the highest level of truth. Verification: L0 data account query.
+//
+// 2. EvidenceBundle   -- Hash-chained forensic package for a governed execution.
+//                       References OutcomeRecord by ID. Contains policy decisions, trust
+//                       assumptions, and external proofs not in the outcome.
+//                       Verification: chain hash recomputation.
+//
+// 3. OutcomeRecord    -- Transient execution result comparing plan vs actual.
+//                       Source of truth for step outcomes, drift analysis, approval consumption.
+//                       Verification: plan hash comparison.
+//
+// 4. AuditEvent       -- Low-level append-only operational telemetry.
+//                       No semantic relationship to specific governed executions.
+//                       Verification: hash-chain integrity.
+//
+// Data flows UPWARD: OutcomeRecord -> EvidenceBundle -> AnchoredRecord
+// AuditEvents flow INDEPENDENTLY as operational telemetry.
+
 // NOTE: the pkg/evidence package intentionally depends on no other
 // Infrix packages. Upstream packages (pkg/policy, pkg/workflow,
 // pkg/bridge, pkg/trust) already transitively import pkg/evidence, so
@@ -173,9 +194,10 @@ type EvidenceBundle struct {
 	Type string `json:"type"` // always "evidence_bundle"
 
 	// References back to the intent lifecycle that produced this bundle.
-	IntentID  string `json:"intentId"`
-	PlanID    string `json:"planId,omitempty"`
-	OutcomeID string `json:"outcomeId,omitempty"`
+	IntentID        string `json:"intentId"`
+	PlanID          string `json:"planId,omitempty"`
+	OutcomeID       string `json:"outcomeId,omitempty"`
+	OutcomeRecordID string `json:"outcomeRecordId,omitempty"` // Canonical reference to OutcomeRecord (source of truth for step outcomes, drift, approvals)
 
 	// The hash-linked evidence chain and the state root at the moment
 	// the chain was finalized.
@@ -195,15 +217,19 @@ type EvidenceBundle struct {
 	// everything including step outcomes and external proofs.
 	Level EvidenceLevel `json:"level"`
 
-	// Content populated based on Level. See the DecisionProofRef /
-	// ApprovalEvidenceRef / DriftAnalysisRef / StepOutcomeRef comments
-	// for why these are local mirrors rather than direct imports.
+	// Content populated based on Level.
+	// Evidence-specific fields (NOT in OutcomeRecord):
 	PolicyDecisions  []DecisionProofRef    `json:"policyDecisions,omitempty"`
-	ApprovalEvidence []ApprovalEvidenceRef `json:"approvalEvidence,omitempty"`
 	TrustAssumptions []TrustAssumption     `json:"trustAssumptions,omitempty"`
 	ExternalProofs   []ExternalProofRef    `json:"externalProofs,omitempty"`
-	DriftAnalysis    *DriftAnalysisRef     `json:"driftAnalysis,omitempty"`
-	StepOutcomes     []StepOutcomeRef      `json:"stepOutcomes,omitempty"`
+
+	// Deprecated: The following fields duplicate data that lives
+	// authoritatively in OutcomeRecord. Use OutcomeRecordID to
+	// reference the canonical source. These fields are retained for
+	// backward compatibility but will be removed in a future phase.
+	ApprovalEvidence []ApprovalEvidenceRef `json:"approvalEvidence,omitempty"` // Deprecated: use OutcomeRecord.ApprovalEvidence
+	DriftAnalysis    *DriftAnalysisRef     `json:"driftAnalysis,omitempty"`    // Deprecated: use OutcomeRecord.DriftAnalysis
+	StepOutcomes     []StepOutcomeRef      `json:"stepOutcomes,omitempty"`     // Deprecated: use OutcomeRecord.StepOutcomes
 
 	// Verification metadata set by Finalize.
 	BundleHash    [32]byte `json:"bundleHash"`
