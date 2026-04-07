@@ -54,6 +54,23 @@ const (
 
 	// Shape transitions (Phase 4 — governable adaptive contracts)
 	GoalShapeTransition IntentGoalType = "SHAPE_TRANSITION"
+
+	// Bridge operations (Gap 2 — intent universality)
+	GoalBridgeSend    IntentGoalType = "BRIDGE_SEND"
+	GoalBridgeReceive IntentGoalType = "BRIDGE_RECEIVE"
+
+	// Capability revocation (Gap 2 — inverse of GoalCapabilityGrant)
+	GoalCapabilityRevoke IntentGoalType = "CAPABILITY_REVOKE"
+
+	// Policy unbinding (Gap 2 — inverse of GoalPolicyBind)
+	GoalPolicyUnbind IntentGoalType = "POLICY_UNBIND"
+
+	// Anchor force (Gap 2 — operator-triggered anchoring)
+	GoalAnchorForce IntentGoalType = "ANCHOR_FORCE"
+
+	// Trust profile management (Gap 2 — trust fabric is intent-native)
+	GoalTrustProfileCreate IntentGoalType = "TRUST_PROFILE_CREATE"
+	GoalTrustProfileUpdate IntentGoalType = "TRUST_PROFILE_UPDATE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -82,8 +99,15 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalSwarmCreate:        true,
 	GoalSwarmJoin:          true,
 	GoalSwarmCoordinate:    true,
-	GoalSwarmDissolve:      true,
+	GoalSwarmDissolve:       true,
 	GoalShapeTransition:    true,
+	GoalBridgeSend:         true,
+	GoalBridgeReceive:      true,
+	GoalCapabilityRevoke:   true,
+	GoalPolicyUnbind:       true,
+	GoalAnchorForce:        true,
+	GoalTrustProfileCreate: true,
+	GoalTrustProfileUpdate: true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
