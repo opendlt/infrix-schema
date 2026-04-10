@@ -37,6 +37,7 @@ const (
 	GoalRoleRevoke    IntentGoalType = "ROLE_REVOKE"
 	GoalRoleSuspend   IntentGoalType = "ROLE_SUSPEND"
 	GoalRoleEmergency IntentGoalType = "ROLE_EMERGENCY"
+	GoalRoleNormalize IntentGoalType = "ROLE_NORMALIZE"
 
 	// Disclosure governance intent types (G-13 Phase 9)
 	GoalDisclosureGrant  IntentGoalType = "DISCLOSURE_GRANT"
@@ -92,6 +93,7 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalRoleRevoke:         true,
 	GoalRoleSuspend:        true,
 	GoalRoleEmergency:      true,
+	GoalRoleNormalize:      true,
 	GoalDisclosureGrant:    true,
 	GoalDisclosureRevoke:   true,
 	GoalContractDeploy:     true,
@@ -136,6 +138,12 @@ type Intent struct {
 	ExpiresAt       int64             `json:"expiresAt,omitempty"`
 	BlockHeight     uint64            `json:"blockHeight"`
 	Metadata        map[string]string `json:"metadata,omitempty"`
+
+	// Gap 6A: explicit forward link to the plan produced from this intent.
+	// Populated by the intent pipeline after plan compilation completes.
+	// Enables graph reconstruction from the struct alone without
+	// requiring a RelationshipStore lookup.
+	ResolvedPlanID string `json:"resolvedPlanId,omitempty"`
 }
 
 // IntentGoal describes the desired outcome.
@@ -199,7 +207,6 @@ type ParseResult struct {
 	Ambiguous  bool              `json:"ambiguous"`
 	Candidates []IntentCandidate `json:"candidates,omitempty"`
 	Warnings   []string          `json:"warnings,omitempty"`
-	UsedLLM    bool              `json:"usedLLM"`
 }
 
 // IntentCandidate is one possible interpretation of an ambiguous input.

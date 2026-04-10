@@ -231,6 +231,10 @@ type EvidenceBundle struct {
 	DriftAnalysis    *DriftAnalysisRef     `json:"driftAnalysis,omitempty"`    // Deprecated: use OutcomeRecord.DriftAnalysis
 	StepOutcomes     []StepOutcomeRef      `json:"stepOutcomes,omitempty"`     // Deprecated: use OutcomeRecord.StepOutcomes
 
+	// Gap 6B: explicit link to the AnchoredRecord produced from this bundle.
+	// Populated by the anchoring workflow when the anchor is created.
+	AnchorRecordID string `json:"anchorRecordId,omitempty"`
+
 	// Verification metadata set by Finalize.
 	BundleHash    [32]byte `json:"bundleHash"`
 	ChainVerified bool     `json:"chainVerified"`
