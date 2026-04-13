@@ -72,6 +72,18 @@ const (
 	// Trust profile management (Gap 2 — trust fabric is intent-native)
 	GoalTrustProfileCreate IntentGoalType = "TRUST_PROFILE_CREATE"
 	GoalTrustProfileUpdate IntentGoalType = "TRUST_PROFILE_UPDATE"
+
+	// System-origin bootstrap intent (Gap 2 closure): creates the initial
+	// operator role bindings for a fresh Infrix instance as a typed,
+	// evidence-producing spine transition rather than a direct registry
+	// write. Bounded by construction to first non-bootstrap block.
+	GoalBootstrapRole IntentGoalType = "BOOTSTRAP_ROLE"
+
+	// System-origin periodic anchor intent (Gap 2 closure): routes
+	// block-boundary state-root and audit-checkpoint anchor writes
+	// through the canonical spine so every AnchoredRecord carries an
+	// originating IntentID, PlanID, and EvidenceBundle.
+	GoalSystemAnchorPeriodic IntentGoalType = "SYSTEM_ANCHOR_PERIODIC"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -108,8 +120,10 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalCapabilityRevoke:   true,
 	GoalPolicyUnbind:       true,
 	GoalAnchorForce:        true,
-	GoalTrustProfileCreate: true,
-	GoalTrustProfileUpdate: true,
+	GoalTrustProfileCreate:   true,
+	GoalTrustProfileUpdate:   true,
+	GoalBootstrapRole:        true,
+	GoalSystemAnchorPeriodic: true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
