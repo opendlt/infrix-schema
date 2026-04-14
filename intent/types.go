@@ -84,6 +84,27 @@ const (
 	// through the canonical spine so every AnchoredRecord carries an
 	// originating IntentID, PlanID, and EvidenceBundle.
 	GoalSystemAnchorPeriodic IntentGoalType = "SYSTEM_ANCHOR_PERIODIC"
+
+	// System-origin approval-invalidation intent (Gap 2 full closure):
+	// the InvalidationChecker originates one of these per sweep / cascade
+	// event (role-revocation, trust-drift, credential-expiry, periodic
+	// scan). The resulting IntentID/PlanID stamp provenance on the
+	// ObjectRegistry.Transition that flips approvals to "revoked". No
+	// invalidationCtx() synthesised literals.
+	GoalApprovalInvalidate IntentGoalType = "APPROVAL_INVALIDATE"
+
+	// System-origin role-expiry intent (Gap 2 full closure): emitted per
+	// devnet block-close sweep when the registry is scanned for
+	// EffectiveUntil-exceeded RoleBindings. Replaces the inline
+	// "intent-role-expiry" / "plan-role-expiry" synthetic IntentContext.
+	GoalRoleExpire IntentGoalType = "ROLE_EXPIRE"
+
+	// System-origin capability-expiry intent (Gap 2 full closure):
+	// emitted per devnet block-close sweep when CapabilityGrant objects
+	// pass their ExpiresAt/ExpiresAtTime. Replaces the hostIntentCtx
+	// fallback that assigned "intent-host-system" / "plan-host-system"
+	// when grant provenance was absent.
+	GoalCapabilityExpire IntentGoalType = "CAPABILITY_EXPIRE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -124,6 +145,9 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalTrustProfileUpdate:   true,
 	GoalBootstrapRole:        true,
 	GoalSystemAnchorPeriodic: true,
+	GoalApprovalInvalidate:   true,
+	GoalRoleExpire:           true,
+	GoalCapabilityExpire:     true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
