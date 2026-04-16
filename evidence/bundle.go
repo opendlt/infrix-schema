@@ -239,6 +239,20 @@ type EvidenceBundle struct {
 	BundleHash    [32]byte `json:"bundleHash"`
 	ChainVerified bool     `json:"chainVerified"`
 
+	// OutcomeDigest is the deterministic digest of the canonical
+	// OutcomeRecord referenced by OutcomeRecordID. It is set by upstream
+	// callers (the executor hook, the mediator) before Finalize so the
+	// portable evidence package can carry an outcome-bound proof
+	// independent of bundle internals. Zero when no outcome is bound
+	// (subsystem-attributed bundles that produce their own artifact may
+	// re-use BundleHash via SetOutcomeDigest at finalize time).
+	OutcomeDigest [32]byte `json:"outcomeDigest"`
+
+	// SealedBlockHeight is the L0 block height observed at the moment
+	// the bundle was sealed. Required for portable packages so external
+	// verifiers can place trust snapshots in time.
+	SealedBlockHeight uint64 `json:"sealedBlockHeight"`
+
 	// Lifecycle
 	State     BundleState `json:"state"`
 	ExpiresAt uint64      `json:"expiresAt,omitempty"` // Unix timestamp, 0 = no expiry
