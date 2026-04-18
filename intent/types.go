@@ -17,7 +17,10 @@ const (
 	// System-level intent types (protocol operations)
 	GoalObjectCreate    IntentGoalType = "OBJECT_CREATE"
 	GoalObjectMutate    IntentGoalType = "OBJECT_MUTATE"
-	GoalTransfer        IntentGoalType = "TRANSFER"
+	// Gap 13: GoalTransfer and GoalEscrowCreate were removed. Single-leg
+	// value transfers and escrow creation both route through GoalSettlement
+	// (method=atomic or method=escrow with LegKindEscrow) so the shape
+	// doctrine in pkg/settlement runs on every settlement-typed object.
 	GoalPolicyBind      IntentGoalType = "POLICY_BIND"
 	GoalCapabilityGrant IntentGoalType = "CAPABILITY_GRANT"
 	GoalWorkflowStart   IntentGoalType = "WORKFLOW_START"
@@ -25,7 +28,6 @@ const (
 	GoalVaultCreate     IntentGoalType = "VAULT_CREATE"
 	GoalSettlement      IntentGoalType = "SETTLEMENT"
 	GoalSettlementNetting IntentGoalType = "SETTLEMENT_NETTING"
-	GoalEscrowCreate      IntentGoalType = "ESCROW_CREATE"
 	GoalObjectTransition  IntentGoalType = "OBJECT_TRANSITION"
 	GoalPolicyChange      IntentGoalType = "POLICY_CHANGE"
 	GoalContractUpgrade     IntentGoalType = "CONTRACT_UPGRADE"
@@ -112,11 +114,10 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalConvert: true, GoalEarnYield: true, GoalBorrow: true,
 	GoalProvideLiquidity: true, GoalSwap: true, GoalStake: true,
 	GoalBridge: true, GoalCompound: true, GoalCustom: true,
-	GoalObjectCreate: true, GoalObjectMutate: true, GoalTransfer: true,
+	GoalObjectCreate: true, GoalObjectMutate: true,
 	GoalPolicyBind: true, GoalCapabilityGrant: true, GoalWorkflowStart: true,
 	GoalCredentialIssue: true, GoalVaultCreate: true, GoalSettlement: true,
 	GoalSettlementNetting: true,
-	GoalEscrowCreate:      true,
 	GoalObjectTransition: true,
 	GoalPolicyChange:     true,
 	GoalContractUpgrade:    true,
