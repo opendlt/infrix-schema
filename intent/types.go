@@ -137,6 +137,20 @@ const (
 	GoalExternalAdapterCall IntentGoalType = "EXTERNAL_ADAPTER_CALL"
 	GoalAgentRun            IntentGoalType = "AGENT_RUN"
 	GoalConfidentialExec    IntentGoalType = "CONFIDENTIAL_EXEC"
+
+	// Gap 15 sixth-pass §15 closure — generic admin/operator action
+	// envelope for state-mutating /rpc methods (feed.setPrice,
+	// immune.{pause,resume,freeze,configure,quarantine,...},
+	// temporal.{schedule,scheduleRecurring,cancelSchedule}, swarm.*,
+	// shapeshift.register, playground.*, live.*, genome.*, compliance.*,
+	// rewind.*, indexer.prune). CustomParams carries
+	// {subsystem: "feed"|"immune"|..., action: "setPrice"|"pause"|...,
+	// params: map[string]any}. The mediator dispatches via
+	// SubsystemActionDispatcher to a per-(subsystem,action) handler
+	// registry so every state mutation flows through the canonical spine
+	// (intent → plan → policy → execution → outcome → evidence) rather
+	// than bypassing the mediator with a direct subsystem call.
+	GoalSubsystemAction IntentGoalType = "SUBSYSTEM_ACTION"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -190,6 +204,7 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalExternalAdapterCall:  true,
 	GoalAgentRun:             true,
 	GoalConfidentialExec:     true,
+	GoalSubsystemAction:      true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
