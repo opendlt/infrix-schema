@@ -107,6 +107,24 @@ const (
 	// fallback that assigned "intent-host-system" / "plan-host-system"
 	// when grant provenance was absent.
 	GoalCapabilityExpire IntentGoalType = "CAPABILITY_EXPIRE"
+
+	// Sponsor governance (Gap 13 fourth-pass closure): the prior path
+	// — handleRegisterSponsor RPC → in-memory sponsorRegistry mutation
+	// — bypassed the spine entirely. Sponsor configuration grants gas /
+	// credit-paying privilege; that grant is now an intent like every
+	// other governance privilege grant.
+	GoalSponsorRegister IntentGoalType = "SPONSOR_REGISTER"
+	GoalSponsorUpdate   IntentGoalType = "SPONSOR_UPDATE"
+	GoalSponsorRevoke   IntentGoalType = "SPONSOR_REVOKE"
+	GoalSponsorPause    IntentGoalType = "SPONSOR_PAUSE"
+	GoalSponsorResume   IntentGoalType = "SPONSOR_RESUME"
+
+	// Dispute resolution (Gap 13 fourth-pass closure): every
+	// SettlementShape that declares Failure.RaisesDispute creates an
+	// InstructionDispute with Resolution=pending; this intent is the
+	// canonical seam by which a designated arbiter binds the dispute
+	// to a verdict and triggers the appropriate terminal transition.
+	GoalDisputeResolve IntentGoalType = "DISPUTE_RESOLVE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -149,6 +167,12 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalApprovalInvalidate:   true,
 	GoalRoleExpire:           true,
 	GoalCapabilityExpire:     true,
+	GoalSponsorRegister:      true,
+	GoalSponsorUpdate:        true,
+	GoalSponsorRevoke:        true,
+	GoalSponsorPause:         true,
+	GoalSponsorResume:        true,
+	GoalDisputeResolve:       true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
