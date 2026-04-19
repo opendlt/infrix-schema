@@ -125,6 +125,18 @@ const (
 	// canonical seam by which a designated arbiter binds the dispute
 	// to a verdict and triggers the appropriate terminal transition.
 	GoalDisputeResolve IntentGoalType = "DISPUTE_RESOLVE"
+
+	// Gap 14 execution-pluralism peer-family goals. The memo names seven
+	// execution families that must be equally normalized peers; five of
+	// them were previously defined-but-unwired at the plan-step layer. A
+	// user-submittable intent now exists for each peer so every family
+	// can be reached through the canonical intent → plan → approval →
+	// execution → outcome spine, not just through a synthetic plan.
+	GoalRulePackEval        IntentGoalType = "RULE_PACK_EVAL"
+	GoalVerifierRun         IntentGoalType = "VERIFIER_RUN"
+	GoalExternalAdapterCall IntentGoalType = "EXTERNAL_ADAPTER_CALL"
+	GoalAgentRun            IntentGoalType = "AGENT_RUN"
+	GoalConfidentialExec    IntentGoalType = "CONFIDENTIAL_EXEC"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -173,6 +185,11 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalSponsorPause:         true,
 	GoalSponsorResume:        true,
 	GoalDisputeResolve:       true,
+	GoalRulePackEval:         true,
+	GoalVerifierRun:          true,
+	GoalExternalAdapterCall:  true,
+	GoalAgentRun:             true,
+	GoalConfidentialExec:     true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
