@@ -151,6 +151,23 @@ const (
 	// (intent → plan → policy → execution → outcome → evidence) rather
 	// than bypassing the mediator with a direct subsystem call.
 	GoalSubsystemAction IntentGoalType = "SUBSYSTEM_ACTION"
+
+	// Spec §5.3 plugin upgrade lifecycle: the canonical governance
+	// seam for proposing a plugin descriptor change. The mediator
+	// computes the descriptor diff (CapabilityDiff / TrustProfileDiff
+	// / PolicyHookDiff / commit-model deltas) via pkg/pluginupgrade,
+	// mints a TypeCompatibilityReport in "draft" state, and adds an
+	// approval gate sized by the report's RiskClass (admin /
+	// policy_authority / security_officer / trust_officer / none).
+	// Without this goal type, plugin descriptors could be swapped in
+	// at devnet boot with no governance trail; the GoalPluginUpgrade
+	// flow makes every compatibility-affecting change a first-class
+	// spine event.
+	//
+	// CustomParams shape:
+	//   {pluginId: string, pluginFamily: string,
+	//    priorDescriptor: PluginDescriptor, newDescriptor: PluginDescriptor}
+	GoalPluginUpgrade IntentGoalType = "PLUGIN_UPGRADE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -205,6 +222,7 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalAgentRun:             true,
 	GoalConfidentialExec:     true,
 	GoalSubsystemAction:      true,
+	GoalPluginUpgrade:        true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
