@@ -64,12 +64,21 @@ type PortableEvidencePackage struct {
 }
 
 // TrustSnapshotEntry captures one trust profile's state at a point in time.
+//
+// Spec §8.3 mandates the following fields for trust-consuming
+// executions: profile IDs, states, freshness timestamps, finality
+// assumptions, assumption class, and verifier IDs where relevant.
+// The shape is mirrored in pkg/executor.TrustSnapshotEntry so the
+// portable package round-trips without field remapping.
 type TrustSnapshotEntry struct {
-	ProfileID   string `json:"profileId"`
-	Status      string `json:"status"` // active, degraded, suspended
-	ProofType   string `json:"proofType"`
-	Assumption  string `json:"assumption"`
-	BlockHeight uint64 `json:"blockHeight"`
+	ProfileID     string `json:"profileId"`
+	Status        string `json:"status"` // active, degraded, suspended
+	ProofType     string `json:"proofType"`
+	Assumption    string `json:"assumption"`
+	BlockHeight   uint64 `json:"blockHeight"`
+	FreshnessAt   int64  `json:"freshnessAt,omitempty"`   // Spec §8.3 freshness timestamp (Unix seconds)
+	FinalityModel string `json:"finalityModel,omitempty"` // Spec §8.3 finality assumption (§14.2 value)
+	VerifierID    string `json:"verifierId,omitempty"`    // Spec §8.3 verifier ID where relevant
 }
 
 // BuildPortablePackage creates a PortableEvidencePackage from the given
