@@ -206,6 +206,21 @@ const (
 	//    expiresAt: uint64,         // for bind, unix seconds
 	//    profile: {...}}            // for profile_update
 	GoalRateLimitUpdate IntentGoalType = "RATE_LIMIT_UPDATE"
+
+	// G-25 phase 1c — operator-initiated session-key delegation.
+	// The operator (via the wallet's hardware key) authorizes a
+	// freshly-generated ED25519 session key to act on their behalf
+	// for a narrowly-scoped purpose ("approval") and a bounded
+	// lifetime (≤ 1h) so repeat operations don't require 50
+	// hardware-key prompts. Compiles to a TypeCapabilityGrant
+	// object with Purpose=approval, WorkflowStageScope=
+	// current_session, and ExpiresAt = now + maxLifetimeSeconds.
+	//
+	// CustomParams shape:
+	//   {sessionPubKey: hex(32-byte ED25519 pubkey),
+	//    maxLifetimeSeconds: uint64 (≤ 3600),
+	//    grantId: string (defaults to "session-<intentID>")}
+	GoalSessionKeyDelegate IntentGoalType = "SESSION_KEY_DELEGATE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -265,6 +280,8 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	// G-24 closed-loop operational controls.
 	GoalGasScheduleUpdate: true,
 	GoalRateLimitUpdate:   true,
+	// G-25 session-key delegation.
+	GoalSessionKeyDelegate: true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
