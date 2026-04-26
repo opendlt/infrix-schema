@@ -168,6 +168,22 @@ const (
 	//   {pluginId: string, pluginFamily: string,
 	//    priorDescriptor: PluginDescriptor, newDescriptor: PluginDescriptor}
 	GoalPluginUpgrade IntentGoalType = "PLUGIN_UPGRADE"
+
+	// G-19 phase 5 (spec §5.1): plugin admission lifecycle. Replaces
+	// boot-time code-only plugin registration with a typed system
+	// intent that drives each plugin through the canonical mediator
+	// + admission policy + approval pipeline. Boot wires plugins as
+	// pending; the GoalPluginRegister intent transitions them to
+	// LifecycleActive only after admission policy clears. A
+	// misconfigured plugin (bad ImplementationHash, unknown
+	// ConfidentialityProfile, missing CostProfile.Tier) fails boot
+	// at admission rather than at first dispatch — tighter loop,
+	// earlier failure, full evidence trail.
+	//
+	// CustomParams shape:
+	//   {pluginId: string, pluginFamily: string,
+	//    descriptor: PluginDescriptor (canonical, pre-validated)}
+	GoalPluginRegister IntentGoalType = "PLUGIN_REGISTER"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -223,6 +239,7 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalConfidentialExec:     true,
 	GoalSubsystemAction:      true,
 	GoalPluginUpgrade:        true,
+	GoalPluginRegister:       true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
