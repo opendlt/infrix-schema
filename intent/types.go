@@ -184,6 +184,28 @@ const (
 	//   {pluginId: string, pluginFamily: string,
 	//    descriptor: PluginDescriptor (canonical, pre-validated)}
 	GoalPluginRegister IntentGoalType = "PLUGIN_REGISTER"
+
+	// G-24 closed-loop operational controls. Both controllers
+	// (GasController, RateLimitController) observe runtime signals,
+	// classify the regime, and propose typed governance intents that
+	// flow through the canonical mediator + admission policy pipeline.
+	// The controllers never mutate operational parameters directly —
+	// every adjustment leaves an evidence trail.
+	//
+	// CustomParams shape (gas):
+	//   {newTier: "normal"|"elevated"|"severe"|"critical",
+	//    snapshot: {executeP95Ms: uint, journalLagBytes: uint, ...},
+	//    reason: string}
+	GoalGasScheduleUpdate IntentGoalType = "GAS_SCHEDULE_UPDATE"
+
+	// CustomParams shape (rate-limit):
+	//   {action: "bind"|"unbind"|"profile_update",
+	//    actorId: string,           // for bind/unbind
+	//    tier: "default"|"elevated_friction"|"throttled",
+	//    reason: string,
+	//    expiresAt: uint64,         // for bind, unix seconds
+	//    profile: {...}}            // for profile_update
+	GoalRateLimitUpdate IntentGoalType = "RATE_LIMIT_UPDATE"
 )
 
 // ValidGoalTypes is the set of all valid goal types.
@@ -240,6 +262,9 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalSubsystemAction:      true,
 	GoalPluginUpgrade:        true,
 	GoalPluginRegister:       true,
+	// G-24 closed-loop operational controls.
+	GoalGasScheduleUpdate: true,
+	GoalRateLimitUpdate:   true,
 }
 
 // OptimizationTarget identifies the primary optimization goal.
