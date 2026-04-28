@@ -123,7 +123,44 @@ const (
 	// was relied upon. Full bundles are suitable for forensic review
 	// and for presenting to third-party auditors.
 	EvidenceLevelFull EvidenceLevel = "full"
+
+	// EvidenceLevelAnchored extends EvidenceLevelFull with the spec
+	// §9.2.4 obligation: a non-zero anchor candidate digest MUST be
+	// packaged at finalize time. Bundles at this level represent
+	// artifacts whose lifecycle terminates with anchored finality —
+	// settlement proofs, bridge proofs, compliance reports, forensic
+	// reports — where the anchor candidate is part of the bundle's
+	// immutable content rather than an opportunistic post-finalize
+	// addition. EvidenceCollector.Finalize rejects an Anchored bundle
+	// that lacks AnchorCandidateDigest. GAP-V4 closure (2026-04-28).
+	EvidenceLevelAnchored EvidenceLevel = "anchored"
 )
+
+// ValidEvidenceLevels returns the canonical spec §9.2 four-tier list
+// in strictness-ascending order. Every EvidenceLevel value referenced
+// by production code MUST be a member of this set; resolvers should
+// validate against IsValidEvidenceLevel before propagating an
+// operator-supplied string. GAP-V4 closure (2026-04-28).
+func ValidEvidenceLevels() []EvidenceLevel {
+	return []EvidenceLevel{
+		EvidenceLevelLight,
+		EvidenceLevelStandard,
+		EvidenceLevelFull,
+		EvidenceLevelAnchored,
+	}
+}
+
+// IsValidEvidenceLevel reports whether the supplied EvidenceLevel is a
+// canonical spec §9.2 value. Empty strings and unrecognised values
+// return false; callers translate that into either an error or a
+// system-default depending on the call site.
+func IsValidEvidenceLevel(l EvidenceLevel) bool {
+	switch l {
+	case EvidenceLevelLight, EvidenceLevelStandard, EvidenceLevelFull, EvidenceLevelAnchored:
+		return true
+	}
+	return false
+}
 
 // AnchorStatus tracks the L0 anchoring lifecycle of an evidence bundle.
 // Bundles begin unanchored, transition to pending when an anchor write
@@ -210,6 +247,14 @@ type EvidenceBundle struct {
 	AnchorTxHash  string       `json:"anchorTxHash,omitempty"`
 	AnchorBlock   uint64       `json:"anchorBlockHeight,omitempty"`
 	AnchorDataIdx uint64       `json:"anchorDataIndex,omitempty"`
+
+	// AnchorCandidateDigest is the SHA-256 the bundle commits to
+	// anchor at finalize time. Required when Level == EvidenceLevelAnchored
+	// (spec §9.2.4: "anchor candidate contribution + durable digest
+	// packaging"). Set by the collector via SetAnchorCandidate before
+	// Finalize. Zero value when the bundle is not at Anchored level.
+	// GAP-V4 closure (2026-04-28).
+	AnchorCandidateDigest [32]byte `json:"anchorCandidateDigest,omitempty"`
 
 	// Evidence level controls which of the content fields below are
 	// populated. Light bundles populate none of them, Standard bundles
@@ -331,10 +376,48 @@ func (b *EvidenceBundle) ComputeBundleHash() [32]byte {
 		h.Write(data)
 	}
 
+	// GAP-V4 closure (spec §9.2.4): the anchor candidate digest is part
+	// of the bundle's immutable content for Anchored bundles; including
+	// it in the hash means an upgrade that mutates the candidate AFTER
+	// finalize would invalidate the BundleHash and the chain-verifier
+	// would catch the tampering.
+	var zero [32]byte
+	if b.AnchorCandidateDigest != zero {
+		h.Write(b.AnchorCandidateDigest[:])
+	}
+
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
 	return result
 }
+
+// SetAnchorCandidate stamps the anchor candidate digest the bundle
+// commits to anchor at finalize time. Required for level=Anchored
+// bundles per spec §9.2.4. Idempotent: calling with the same digest
+// twice is a no-op; calling with a different digest after Finalize is
+// a contract violation that callers must avoid (the BundleHash is
+// already sealed).
+//
+// GAP-V4 closure (2026-04-28).
+func (b *EvidenceBundle) SetAnchorCandidate(digest [32]byte) {
+	b.AnchorCandidateDigest = digest
+}
+
+// ErrAnchoredBundleNeedsCandidate is the sentinel returned by Finalize
+// when an Anchored-level bundle is sealed without an AnchorCandidateDigest
+// stamped on it. Spec §9.2.4 requires the anchor candidate to be part
+// of the bundle's immutable content; finalising without one would
+// silently produce a degraded bundle that downstream verifiers cannot
+// distinguish from a properly-anchored one. GAP-V4 closure (2026-04-28).
+var ErrAnchoredBundleNeedsCandidate = newErr("evidence: level=anchored bundle requires AnchorCandidateDigest before Finalize (spec §9.2.4)")
+
+// newErr is a tiny stringly-error constructor that avoids importing
+// errors here (pkg/evidence is intentionally dependency-light).
+func newErr(s string) error { return &simpleErr{s: s} }
+
+type simpleErr struct{ s string }
+
+func (e *simpleErr) Error() string { return e.s }
 
 // Finalize seals the bundle for persistence and export. It computes
 // the bundle hash, verifies the embedded evidence chain (recording the
@@ -347,7 +430,19 @@ func (b *EvidenceBundle) ComputeBundleHash() [32]byte {
 //
 // Finalize is idempotent: calling it multiple times yields the same
 // BundleHash because ComputeBundleHash excludes mutable fields.
-func (b *EvidenceBundle) Finalize() {
+//
+// GAP-V4 closure (2026-04-28): when Level == EvidenceLevelAnchored,
+// the bundle MUST carry a non-zero AnchorCandidateDigest. Finalize
+// returns ErrAnchoredBundleNeedsCandidate otherwise so the spec
+// §9.2.4 obligation is enforced at sealing time, not opportunistically
+// after the fact.
+func (b *EvidenceBundle) Finalize() error {
+	if b.Level == EvidenceLevelAnchored {
+		var zero [32]byte
+		if b.AnchorCandidateDigest == zero {
+			return ErrAnchoredBundleNeedsCandidate
+		}
+	}
 	b.Type = string(TypeEvidenceBundleObject)
 	b.BundleHash = b.ComputeBundleHash()
 	b.ChainVerified = VerifyChainIntegrity(b.Chain) == nil
@@ -359,6 +454,7 @@ func (b *EvidenceBundle) Finalize() {
 		b.CreatedAt = time.Now()
 	}
 	b.UpdatedAt = time.Now()
+	return nil
 }
 
 // TypeEvidenceBundleObject is the canonical object-type string used
