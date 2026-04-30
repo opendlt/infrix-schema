@@ -81,6 +81,48 @@ type RoleSoDApprover struct {
 	Role     string `json:"role"`
 }
 
+// CapabilityExerciseRecord captures a single capability accessor invocation
+// against an ExecutionContextView. Persisted as a capability_exercise (or
+// capability_denied when Allowed=false) link in the evidence chain. The
+// PluginID identifies the descriptor whose manifest contained (or did not
+// contain) the required capability; auditors can correlate this with the
+// step plugin selection record. Spec §7.4 — "capability exercise is
+// evidence-addressable" (GAP-V15 closure 2026-04-30).
+type CapabilityExerciseRecord struct {
+	PluginID    string    `json:"pluginId,omitempty"`
+	StepID      string    `json:"stepId,omitempty"`
+	Capability  string    `json:"capability"`
+	Method      string    `json:"method"`
+	Allowed     bool      `json:"allowed"`
+	At          time.Time `json:"at,omitzero"`
+}
+
+// GrantStateSnapshot captures the resolved CapabilityGrant state at the
+// moment the grant satisfied a host capability check. Stored as a
+// grant_state_snapshot link so auditors can reconstruct which grant
+// authorized which exercise without replaying the L0 chain. GAP-V15
+// closure 2026-04-30.
+type GrantStateSnapshot struct {
+	GrantID         string `json:"grantId"`
+	ContractAddr    string `json:"contractAddr"`
+	Capability      string `json:"capability"`
+	GrantState      string `json:"grantState"`
+	BlockHeight     uint64 `json:"blockHeight"`
+	ExpiresAt       uint64 `json:"expiresAt,omitempty"`
+	DelegationDepth uint64 `json:"delegationDepth,omitempty"`
+	ConditionsMet   bool   `json:"conditionsMet"`
+}
+
+// DelegationChainRecord captures the full delegation chain for an exercised
+// CapabilityGrant. Stored as a delegation_chain link when a delegated grant
+// is consumed. GAP-V15 closure 2026-04-30.
+type DelegationChainRecord struct {
+	GrantID   string   `json:"grantId"`
+	ChainIDs  []string `json:"chainIds"`
+	MaxDepth  uint64   `json:"maxDepth,omitempty"`
+	RootGrant string   `json:"rootGrant,omitempty"`
+}
+
 // EvidenceChain is a hash-linked sequence of artifacts produced during
 // intent execution. Each link's PrevHash references the previous link's
 // ContentHash, forming a tamper-evident chain. The ChainHash is the
@@ -245,6 +287,47 @@ func (b *Builder) AddRoleEmergencyGrant(bindingID string, fields map[string]any,
 		"justification": justification,
 	}
 	b.AddJSON(EvidenceLinkRoleEmergencyGrant, payload, "role_binding://"+bindingID)
+}
+
+// AddCapabilityExercise records a single allowed capability accessor
+// invocation against an ExecutionContextView. Spec §7.4 — capability
+// exercise is evidence-addressable (GAP-V15 closure 2026-04-30). The
+// artifact reference uses the canonical capability:// scheme plus the
+// (pluginID, stepID, capability) tuple so auditors can scope the search
+// to a single step / plugin / capability.
+func (b *Builder) AddCapabilityExercise(rec CapabilityExerciseRecord) {
+	ref := "capability://" + rec.PluginID + "/" + rec.StepID + "/" + rec.Capability
+	b.AddJSON(EvidenceLinkCapabilityExercise, rec, ref)
+}
+
+// AddCapabilityDenied records a denied capability accessor invocation
+// (Allowed=false on the ExecutionContextView gate). The denial side of
+// the §7.4 evidence-addressable contract: an undeclared capability
+// request must produce a durable artifact even though the call returned
+// ErrCapabilityDenied. GAP-V15 closure 2026-04-30.
+func (b *Builder) AddCapabilityDenied(rec CapabilityExerciseRecord) {
+	ref := "capability://" + rec.PluginID + "/" + rec.StepID + "/" + rec.Capability + "/denied"
+	b.AddJSON(EvidenceLinkCapabilityDenied, rec, ref)
+}
+
+// AddGrantStateSnapshot records the resolved CapabilityGrant state at
+// the moment a host CheckCall consumed it. Captures the GrantID,
+// contract address, capability, grant state, expiration, and delegation
+// depth so auditors can trace which grant authorized which exercise
+// without replaying L0. GAP-V15 closure 2026-04-30.
+func (b *Builder) AddGrantStateSnapshot(rec GrantStateSnapshot) {
+	ref := "grant://" + rec.GrantID
+	b.AddJSON(EvidenceLinkGrantState, rec, ref)
+}
+
+// AddDelegationChain records the full ancestor chain of a delegated
+// CapabilityGrant at the moment it satisfied a CheckCall. Emitted only
+// when the resolved grant has a non-empty DelegationChain so the
+// non-delegated common case stays out of the chain. GAP-V15 closure
+// 2026-04-30.
+func (b *Builder) AddDelegationChain(rec DelegationChainRecord) {
+	ref := "grant://" + rec.GrantID + "/delegation_chain"
+	b.AddJSON(EvidenceLinkDelegationChain, rec, ref)
 }
 
 // Links returns the accumulated evidence links. Primarily used by tests and
