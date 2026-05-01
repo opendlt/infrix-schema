@@ -139,6 +139,7 @@ type CredentialRevocationRecord struct {
 	IntentID       string `json:"intentId"`
 	PlanID         string `json:"planId"`
 	RevokedAtBlock uint64 `json:"revokedAtBlock"`
+	SnapshotDigest string `json:"snapshotDigest,omitempty"`
 	AnchorID       string `json:"anchorId,omitempty"`
 }
 
@@ -146,6 +147,8 @@ type CredentialStatusListRecord struct {
 	StatusListID string `json:"statusListId"`
 	Digest       string `json:"digest"`
 	BlockHeight  uint64 `json:"blockHeight,omitempty"`
+	IntentID     string `json:"intentId,omitempty"`
+	PlanID       string `json:"planId,omitempty"`
 }
 
 // EvidenceChain is a hash-linked sequence of artifacts produced during
