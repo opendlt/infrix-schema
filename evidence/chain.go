@@ -40,6 +40,12 @@ const (
 	EvidenceLinkSoDViolation = "sod_violation"
 )
 
+// Evidence link types for credential status lifecycle.
+const (
+	EvidenceLinkCredentialRevocation = "credential_revocation"
+	EvidenceLinkCredentialStatusList = "credential_status_list"
+)
+
 // Evidence link types for governed role lifecycle (Phase G10-13).
 //
 // These types capture role-related artifacts produced during governed
@@ -89,12 +95,12 @@ type RoleSoDApprover struct {
 // step plugin selection record. Spec §7.4 — "capability exercise is
 // evidence-addressable" (GAP-V15 closure 2026-04-30).
 type CapabilityExerciseRecord struct {
-	PluginID    string    `json:"pluginId,omitempty"`
-	StepID      string    `json:"stepId,omitempty"`
-	Capability  string    `json:"capability"`
-	Method      string    `json:"method"`
-	Allowed     bool      `json:"allowed"`
-	At          time.Time `json:"at,omitzero"`
+	PluginID   string    `json:"pluginId,omitempty"`
+	StepID     string    `json:"stepId,omitempty"`
+	Capability string    `json:"capability"`
+	Method     string    `json:"method"`
+	Allowed    bool      `json:"allowed"`
+	At         time.Time `json:"at,omitzero"`
 }
 
 // GrantStateSnapshot captures the resolved CapabilityGrant state at the
@@ -121,6 +127,24 @@ type DelegationChainRecord struct {
 	ChainIDs  []string `json:"chainIds"`
 	MaxDepth  uint64   `json:"maxDepth,omitempty"`
 	RootGrant string   `json:"rootGrant,omitempty"`
+}
+
+type CredentialRevocationRecord struct {
+	CredentialID   string `json:"credentialId"`
+	StatusListID   string `json:"statusListId"`
+	Index          uint64 `json:"index"`
+	Actor          string `json:"actor"`
+	Reason         string `json:"reason"`
+	IntentID       string `json:"intentId"`
+	PlanID         string `json:"planId"`
+	RevokedAtBlock uint64 `json:"revokedAtBlock"`
+	AnchorID       string `json:"anchorId,omitempty"`
+}
+
+type CredentialStatusListRecord struct {
+	StatusListID string `json:"statusListId"`
+	Digest       string `json:"digest"`
+	BlockHeight  uint64 `json:"blockHeight,omitempty"`
 }
 
 // EvidenceChain is a hash-linked sequence of artifacts produced during
@@ -328,6 +352,14 @@ func (b *Builder) AddGrantStateSnapshot(rec GrantStateSnapshot) {
 func (b *Builder) AddDelegationChain(rec DelegationChainRecord) {
 	ref := "grant://" + rec.GrantID + "/delegation_chain"
 	b.AddJSON(EvidenceLinkDelegationChain, rec, ref)
+}
+
+func (b *Builder) AddCredentialRevocation(rec CredentialRevocationRecord) {
+	b.AddJSON(EvidenceLinkCredentialRevocation, rec, "credential://"+rec.CredentialID+"/revocation")
+}
+
+func (b *Builder) AddCredentialStatusList(rec CredentialStatusListRecord) {
+	b.AddJSON(EvidenceLinkCredentialStatusList, rec, "credential_status_list://"+rec.StatusListID)
 }
 
 // Links returns the accumulated evidence links. Primarily used by tests and

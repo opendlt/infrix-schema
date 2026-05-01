@@ -15,24 +15,25 @@ const (
 	GoalCustom           IntentGoalType = "CUSTOM"
 
 	// System-level intent types (protocol operations)
-	GoalObjectCreate    IntentGoalType = "OBJECT_CREATE"
-	GoalObjectMutate    IntentGoalType = "OBJECT_MUTATE"
+	GoalObjectCreate IntentGoalType = "OBJECT_CREATE"
+	GoalObjectMutate IntentGoalType = "OBJECT_MUTATE"
 	// Gap 13: GoalTransfer and GoalEscrowCreate were removed. Single-leg
 	// value transfers and escrow creation both route through GoalSettlement
 	// (method=atomic or method=escrow with LegKindEscrow) so the shape
 	// doctrine in pkg/settlement runs on every settlement-typed object.
-	GoalPolicyBind      IntentGoalType = "POLICY_BIND"
-	GoalCapabilityGrant IntentGoalType = "CAPABILITY_GRANT"
-	GoalWorkflowStart   IntentGoalType = "WORKFLOW_START"
-	GoalCredentialIssue IntentGoalType = "CREDENTIAL_ISSUE"
-	GoalVaultCreate     IntentGoalType = "VAULT_CREATE"
-	GoalSettlement      IntentGoalType = "SETTLEMENT"
+	GoalPolicyBind        IntentGoalType = "POLICY_BIND"
+	GoalCapabilityGrant   IntentGoalType = "CAPABILITY_GRANT"
+	GoalWorkflowStart     IntentGoalType = "WORKFLOW_START"
+	GoalCredentialIssue   IntentGoalType = "CREDENTIAL_ISSUE"
+	GoalCredentialRevoke  IntentGoalType = "CREDENTIAL_REVOKE"
+	GoalVaultCreate       IntentGoalType = "VAULT_CREATE"
+	GoalSettlement        IntentGoalType = "SETTLEMENT"
 	GoalSettlementNetting IntentGoalType = "SETTLEMENT_NETTING"
 	GoalObjectTransition  IntentGoalType = "OBJECT_TRANSITION"
 	GoalPolicyChange      IntentGoalType = "POLICY_CHANGE"
-	GoalContractUpgrade     IntentGoalType = "CONTRACT_UPGRADE"
-	GoalPatchPropagation    IntentGoalType = "PATCH_PROPAGATION"
-	GoalRevertTransaction   IntentGoalType = "REVERT_TRANSACTION"
+	GoalContractUpgrade   IntentGoalType = "CONTRACT_UPGRADE"
+	GoalPatchPropagation  IntentGoalType = "PATCH_PROPAGATION"
+	GoalRevertTransaction IntentGoalType = "REVERT_TRANSACTION"
 
 	// Role governance intent types (G-10 Phase 9)
 	GoalRoleAssign    IntentGoalType = "ROLE_ASSIGN"
@@ -230,32 +231,32 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalBridge: true, GoalCompound: true, GoalCustom: true,
 	GoalObjectCreate: true, GoalObjectMutate: true,
 	GoalPolicyBind: true, GoalCapabilityGrant: true, GoalWorkflowStart: true,
-	GoalCredentialIssue: true, GoalVaultCreate: true, GoalSettlement: true,
-	GoalSettlementNetting: true,
-	GoalObjectTransition: true,
-	GoalPolicyChange:     true,
-	GoalContractUpgrade:    true,
-	GoalPatchPropagation:   true,
-	GoalRevertTransaction:  true,
-	GoalRoleAssign:         true,
-	GoalRoleRevoke:         true,
-	GoalRoleSuspend:        true,
-	GoalRoleEmergency:      true,
-	GoalRoleNormalize:      true,
-	GoalDisclosureGrant:    true,
-	GoalDisclosureRevoke:   true,
-	GoalContractDeploy:     true,
-	GoalContractCall:       true,
-	GoalSwarmCreate:        true,
-	GoalSwarmJoin:          true,
-	GoalSwarmCoordinate:    true,
-	GoalSwarmDissolve:       true,
-	GoalShapeTransition:    true,
-	GoalBridgeSend:         true,
-	GoalBridgeReceive:      true,
-	GoalCapabilityRevoke:   true,
-	GoalPolicyUnbind:       true,
-	GoalAnchorForce:        true,
+	GoalCredentialIssue: true, GoalCredentialRevoke: true, GoalVaultCreate: true, GoalSettlement: true,
+	GoalSettlementNetting:    true,
+	GoalObjectTransition:     true,
+	GoalPolicyChange:         true,
+	GoalContractUpgrade:      true,
+	GoalPatchPropagation:     true,
+	GoalRevertTransaction:    true,
+	GoalRoleAssign:           true,
+	GoalRoleRevoke:           true,
+	GoalRoleSuspend:          true,
+	GoalRoleEmergency:        true,
+	GoalRoleNormalize:        true,
+	GoalDisclosureGrant:      true,
+	GoalDisclosureRevoke:     true,
+	GoalContractDeploy:       true,
+	GoalContractCall:         true,
+	GoalSwarmCreate:          true,
+	GoalSwarmJoin:            true,
+	GoalSwarmCoordinate:      true,
+	GoalSwarmDissolve:        true,
+	GoalShapeTransition:      true,
+	GoalBridgeSend:           true,
+	GoalBridgeReceive:        true,
+	GoalCapabilityRevoke:     true,
+	GoalPolicyUnbind:         true,
+	GoalAnchorForce:          true,
 	GoalTrustProfileCreate:   true,
 	GoalTrustProfileUpdate:   true,
 	GoalBootstrapRole:        true,
