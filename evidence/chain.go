@@ -44,6 +44,7 @@ const (
 const (
 	EvidenceLinkCredentialRevocation = "credential_revocation"
 	EvidenceLinkCredentialStatusList = "credential_status_list"
+	EvidenceLinkRawTxWrappedAsIntent = "raw_tx_wrapped_as_intent"
 )
 
 // Evidence link types for governed role lifecycle (Phase G10-13).
