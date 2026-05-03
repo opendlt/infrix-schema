@@ -310,6 +310,17 @@ type EvidenceBundle struct {
 	// evidence view into the audit log without copying any audit
 	// payload into the bundle itself.
 	AuditEventIDs []string `json:"auditEventIds,omitempty"`
+
+	// PluginVersions enumerates the production plugins whose
+	// descriptors produced bundle content (every plugin call site
+	// that records evidence calls EvidenceCollector.AddPluginVersion
+	// at execution time). Surfaced into PortableEvidencePackage so
+	// external auditors cross-check against their plugin inventory.
+	// P1-005 closure (2026-05-02). Excluded from BundleHash because
+	// the per-plugin hash already lives inside ImplementationHash; if
+	// a plugin's behaviour changes its descriptor's hash flips, which
+	// surfaces here as a different ImplementationHash entry.
+	PluginVersions []PluginVersionEntry `json:"pluginVersions,omitempty"`
 }
 
 // ComputeBundleHash computes the SHA256 hash of the bundle's immutable
