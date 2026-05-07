@@ -380,6 +380,12 @@ type ParseResult struct {
 	Ambiguous  bool              `json:"ambiguous"`
 	Candidates []IntentCandidate `json:"candidates,omitempty"`
 	Warnings   []string          `json:"warnings,omitempty"`
+	// Description is a human-readable render of the parsed intent
+	// (e.g., "TRANSFER 100 ACME -> at least 95 USD via CompoundV3").
+	// Populated by ParseNaturalLanguage via DescribeIntent so RPC
+	// + CLI consumers can echo what was parsed without re-rendering.
+	// P1-J closure (2026-05-07).
+	Description string `json:"description,omitempty"`
 }
 
 // IntentCandidate is one possible interpretation of an ambiguous input.
