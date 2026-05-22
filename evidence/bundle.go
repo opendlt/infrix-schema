@@ -9,6 +9,7 @@ package evidence
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -334,7 +335,15 @@ type EvidenceBundle struct {
 // The function is stable and deterministic: it writes fields in a
 // fixed order and relies on Go's stable JSON encoder for nested
 // structures.
-func (b *EvidenceBundle) ComputeBundleHash() [32]byte {
+// AUDIT_RECHECK_2026-05-22_ROUND3-followup P0 closure: pre-closure
+// the six per-component json.Marshal failures were silently discarded
+// via `data, _`. On marshal failure the corresponding section was
+// excluded from the hash and the digest collapsed to a value that
+// did not bind to the actual content — a tampered evidence bundle
+// with an unmarshalable component would produce a "valid" BundleHash
+// indistinguishable from a clean bundle missing that component
+// entirely. Propagate so Finalize and chain-verifiers fail closed.
+func (b *EvidenceBundle) ComputeBundleHash() ([32]byte, error) {
 	h := sha256.New()
 
 	// Immutable identity.
@@ -353,37 +362,55 @@ func (b *EvidenceBundle) ComputeBundleHash() [32]byte {
 
 	// Policy decisions (deterministic: marshal to JSON).
 	if len(b.PolicyDecisions) > 0 {
-		data, _ := json.Marshal(b.PolicyDecisions)
+		data, err := json.Marshal(b.PolicyDecisions)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal PolicyDecisions for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
 		h.Write(data)
 	}
 
 	// Approval evidence.
 	if len(b.ApprovalEvidence) > 0 {
-		data, _ := json.Marshal(b.ApprovalEvidence)
+		data, err := json.Marshal(b.ApprovalEvidence)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal ApprovalEvidence for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
 		h.Write(data)
 	}
 
 	// Trust assumptions.
 	if len(b.TrustAssumptions) > 0 {
-		data, _ := json.Marshal(b.TrustAssumptions)
+		data, err := json.Marshal(b.TrustAssumptions)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal TrustAssumptions for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
 		h.Write(data)
 	}
 
 	// External proofs.
 	if len(b.ExternalProofs) > 0 {
-		data, _ := json.Marshal(b.ExternalProofs)
+		data, err := json.Marshal(b.ExternalProofs)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal ExternalProofs for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
 		h.Write(data)
 	}
 
 	// Drift analysis.
 	if b.DriftAnalysis != nil {
-		data, _ := json.Marshal(b.DriftAnalysis)
+		data, err := json.Marshal(b.DriftAnalysis)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal DriftAnalysis for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
 		h.Write(data)
 	}
 
 	// Step outcomes.
 	if len(b.StepOutcomes) > 0 {
-		data, _ := json.Marshal(b.StepOutcomes)
+		data, err := json.Marshal(b.StepOutcomes)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal StepOutcomes for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
 		h.Write(data)
 	}
 
@@ -399,7 +426,7 @@ func (b *EvidenceBundle) ComputeBundleHash() [32]byte {
 
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
-	return result
+	return result, nil
 }
 
 // SetAnchorCandidate stamps the anchor candidate digest the bundle
@@ -455,7 +482,11 @@ func (b *EvidenceBundle) Finalize() error {
 		}
 	}
 	b.Type = string(TypeEvidenceBundleObject)
-	b.BundleHash = b.ComputeBundleHash()
+	hash, hashErr := b.ComputeBundleHash()
+	if hashErr != nil {
+		return fmt.Errorf("Finalize: %w", hashErr)
+	}
+	b.BundleHash = hash
 	b.ChainVerified = VerifyChainIntegrity(b.Chain) == nil
 	b.State = BundleStateCreated
 	if b.Anchor == "" {
