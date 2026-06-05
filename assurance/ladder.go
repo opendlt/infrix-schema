@@ -220,6 +220,27 @@ func (c IUAssuranceClass) Multiplier() float64 {
 	}
 }
 
+// Label returns a human-readable description of what an action at this
+// assurance class has actually achieved (the proof + governance it carries).
+func (c IUAssuranceClass) Label() string {
+	switch c {
+	case IUClassSandbox:
+		return "Ungoverned and unanchored — local deterministic execution only (dev/simulation)."
+	case IUClassStandard:
+		return "Governed (policy-evaluated) OR state-proven, but not batch-anchored."
+	case IUClassAnchored:
+		return "Batch-anchored: the artifact hash is a member of an anchored Merkle batch (proof level >= L3)."
+	case IUClassCrossDomain:
+		return "L0-settled and threshold-approved: anchored batch confirmed on Accumulate L0, with M-of-N signed approvals bound to the plan hash."
+	case IUClassHighAssurance:
+		return "L0-settled with credentialed governance (G2): a verified ZK/credential predicate plus anchored evidence."
+	case IUClassRegulated:
+		return "L0-settled, G2 governance, and a regulated retention/audit posture — the strongest assurance tier."
+	default:
+		return ""
+	}
+}
+
 // Valid reports whether c is a defined assurance class.
 func (c IUAssuranceClass) Valid() bool { return c <= IUClassRegulated }
 
