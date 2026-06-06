@@ -21,7 +21,14 @@ import (
 // to add the PluginVersions + PolicyDecisionDigest + AnchorTxHash /
 // AnchorBlockHeight cross-binding fields. Older packages cannot pass
 // the new verifier and vice versa — pre-user, no backwards compat.
-const PortableEvidencePackageVersion = "3"
+//
+// platform-review-3 Epic 2 (2026-06) bumped "3" → "4" to add the
+// optional ReplayCapsule field. A public-production bundle MUST carry
+// a replay capsule so an independent party can deterministically
+// re-execute the operation and confirm it reproduces; legacy bundles
+// omit it. The capsule is committed to ExportHash so tampering it is
+// caught offline.
+const PortableEvidencePackageVersion = "4"
 
 // PortableEvidencePackage is a self-contained, verifiable evidence
 // package that can be verified offline without platform access. It
@@ -93,6 +100,19 @@ type PortableEvidencePackage struct {
 	// closure (2026-05-02).
 	PolicyDecisionDigest [32]byte `json:"policyDecisionDigest,omitempty"`
 
+	// ReplayCapsule, when present, carries the deterministic-replay
+	// material (runtime/build fingerprint, plugin inventory, plan /
+	// intent / outcome hashes, pre/post state roots, deterministic
+	// inputs, execution trace, L0 anchor coordinates) that lets an
+	// independent party re-execute the operation and confirm it
+	// reproduces the recorded outcome. The schema lives in
+	// pkg/verifykit/replaycapsule; it is carried here as raw JSON so the
+	// evidence layer stays schema-agnostic. It is committed to ExportHash
+	// (see computePortableExportHash) so a tampered capsule fails the
+	// offline integrity gate. Empty for legacy / non-production bundles.
+	// platform-review-3 Epic 2 (2026-06).
+	ReplayCapsule json.RawMessage `json:"replayCapsule,omitempty"`
+
 	// ExportHash is the SHA-256 of all other fields, providing package
 	// integrity verification.
 	ExportHash [32]byte `json:"exportHash"`
@@ -153,6 +173,10 @@ type BuildPortablePackageInputs struct {
 	AnchorBlock      uint64
 	PluginVersions   []PluginVersionEntry
 	PolicyDecisions  []DecisionProofRef
+	// ReplayCapsule is the optional deterministic-replay material
+	// (raw JSON; schema in pkg/verifykit/replaycapsule). platform-review-3
+	// Epic 2.
+	ReplayCapsule json.RawMessage
 }
 
 // BuildPortablePackage creates a PortableEvidencePackage from the given
@@ -195,6 +219,7 @@ func BuildPortablePackageWithBindings(in BuildPortablePackageInputs) (*PortableE
 		AnchorTxHash:      in.AnchorTxHash,
 		AnchorBlockHeight: in.AnchorBlock,
 		PluginVersions:    in.PluginVersions,
+		ReplayCapsule:     in.ReplayCapsule,
 	}
 	if len(in.PolicyDecisions) > 0 {
 		digest, derr := computePolicyDecisionDigest(in.PolicyDecisions)
@@ -385,6 +410,12 @@ func VerifyPortablePackage(pkg *PortableEvidencePackage) error {
 	return nil
 }
 
+// HasReplayCapsule reports whether the package carries deterministic-
+// replay material. platform-review-3 Epic 2.
+func (pkg *PortableEvidencePackage) HasReplayCapsule() bool {
+	return pkg != nil && len(pkg.ReplayCapsule) > 0 && string(pkg.ReplayCapsule) != "null"
+}
+
 // verifyPortablePlanHashBinding enforces the P1-005 plan-hash
 // cross-binding: when the embedded bundle carries approval evidence
 // with non-zero PlanHash entries, the portable package's PlanHash MUST
@@ -438,6 +469,7 @@ func computePortableExportHash(pkg *PortableEvidencePackage) ([32]byte, error) {
 		"anchorBlockHeight":    pkg.AnchorBlockHeight,
 		"pluginVersions":       pkg.PluginVersions,
 		"policyDecisionDigest": pkg.PolicyDecisionDigest,
+		"replayCapsule":        json.RawMessage(pkg.ReplayCapsule),
 	}
 	canonical, err := canonicalJSON(intermediate)
 	if err != nil {
