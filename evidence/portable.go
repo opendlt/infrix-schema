@@ -113,6 +113,14 @@ type PortableEvidencePackage struct {
 	// platform-review-3 Epic 2 (2026-06).
 	ReplayCapsule json.RawMessage `json:"replayCapsule,omitempty"`
 
+	// WitnessReceipts carries independent witness attestations
+	// (platform-review-3 Epic 5). Receipts are produced AFTER export by
+	// parties other than the producing node, so they are NOT part of
+	// ExportHash; each receipt is independently signed and cross-binds to
+	// the bundle via its recorded outcome / capsule / anchor hashes. The
+	// typed schema lives in pkg/witness; carried here as raw JSON.
+	WitnessReceipts []json.RawMessage `json:"witnessReceipts,omitempty"`
+
 	// ExportHash is the SHA-256 of all other fields, providing package
 	// integrity verification.
 	ExportHash [32]byte `json:"exportHash"`
