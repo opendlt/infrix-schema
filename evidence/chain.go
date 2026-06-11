@@ -431,15 +431,7 @@ func VerifyChainIntegrity(chain *EvidenceChain) error {
 	return nil
 }
 
-// Verify checks chain structural integrity and returns true if the chain is
-// valid. Deprecated: use VerifyChainIntegrity which returns a descriptive
-// error identifying the specific failure. Retained for backward
-// compatibility with existing callers.
-func Verify(chain *EvidenceChain) bool {
-	if chain == nil {
-		// Preserve legacy semantics: the original Verify panicked on nil
-		// via chain.Links access. New behaviour: treat nil as invalid.
-		return false
-	}
-	return VerifyChainIntegrity(chain) == nil
-}
+// MARKER-AUDIT 2026-06-10 closure: the Deprecated boolean Verify
+// wrapper was deleted — its only callers were tests, all migrated to
+// VerifyChainIntegrity, which returns a descriptive error identifying
+// the specific integrity failure.
