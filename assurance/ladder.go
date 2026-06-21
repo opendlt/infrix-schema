@@ -4,6 +4,14 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
+// Package assurance is the stdlib-only assurance-ladder vocabulary: the proof
+// levels (L0-L4), governance levels (G0-G2), the IU assurance class, and the
+// total/monotone ClassFor projection between them. It is the verification
+// vocabulary the verifier and the billing/economics surfaces share; carved
+// into the infrix-schema module (docs/extraction-plan, M4.3) so the verifier
+// can classify a proof's depth without importing the runtime proof engine
+// (the anchor/state-backed Verifier + the sealed Verdict stay in the core
+// pkg/assurance, which re-exports this vocabulary).
 package assurance
 
 import "fmt"
@@ -284,54 +292,4 @@ func ClassFor(p ProofLevel, g GovernanceLevel, regulated bool) IUAssuranceClass 
 	default:
 		return IUClassSandbox
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Sealed verdict.
-// ---------------------------------------------------------------------------
-
-// verdictSeal is the zero-size unexported token that makes composite-
-// literal construction of Verdict outside this package a compile error.
-// Same discipline as state.ConfirmedTxReceipt and spine.WriteToken.
-type verdictSeal struct{}
-
-// Verdict is the sealed assurance classification of a single governed
-// operation. It can only be minted by Verifier.Attest. Accessors expose
-// the proof level, governance level, IU class/multiplier, the "L<n>/G<n>"
-// tier string, and the underlying proof evidence.
-type Verdict struct {
-	proof     ProofLevel
-	gov       GovernanceLevel
-	regulated bool
-	evidence  ProofVerification
-	seal      verdictSeal
-}
-
-// ProofLevel returns the highest verified proof level.
-func (v Verdict) ProofLevel() ProofLevel { return v.proof }
-
-// GovernanceLevel returns the classified governance level.
-func (v Verdict) GovernanceLevel() GovernanceLevel { return v.gov }
-
-// Regulated reports whether the regulated retention/audit facet applied.
-func (v Verdict) Regulated() bool { return v.regulated }
-
-// IUClass returns the IU assurance class this verdict bills at.
-func (v Verdict) IUClass() IUAssuranceClass { return ClassFor(v.proof, v.gov, v.regulated) }
-
-// IUMultiplier returns the IU billing multiplier for this verdict.
-func (v Verdict) IUMultiplier() float64 { return v.IUClass().Multiplier() }
-
-// Tier returns the canonical "L<n>/G<n>" tier string, e.g. "L4/G2".
-func (v Verdict) Tier() string { return v.proof.String() + "/" + v.gov.String() }
-
-// ProofEvidence returns the per-layer verification detail behind the
-// proof level.
-func (v Verdict) ProofEvidence() ProofVerification { return v.evidence }
-
-// IsZero reports whether v is the zero verdict (L0 / ungoverned).
-func (v Verdict) IsZero() bool {
-	return v.proof == ProofLevelNone &&
-		v.gov == GovernanceLevelUngoverned &&
-		!v.regulated
 }
