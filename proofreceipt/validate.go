@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package proofreceipt
+package proofreceiptschema
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ func Validate(r *Receipt) error {
 	}
 
 	// L4 is only honest with an L0 confirmation.
-	if isLevelL4(a.ProofLevel) && !a.L0Verified {
+	if IsLevelL4(a.ProofLevel) && !a.L0Verified {
 		return fmt.Errorf("proofreceipt: proofLevel L4 without l0Verified")
 	}
 	if hasL4(a.Label) && !a.L0Verified {
@@ -79,7 +79,7 @@ func Validate(r *Receipt) error {
 // hasPositiveAssurance reports whether the receipt carries at least one
 // concrete, passed verification signal.
 func hasPositiveAssurance(a Assurance) bool {
-	return a.L0Verified || a.ReplayVerified || a.WitnessQuorumVerified || isProofLevel(a.ProofLevel)
+	return a.L0Verified || a.ReplayVerified || a.WitnessQuorumVerified || IsProofLevel(a.ProofLevel)
 }
 
 func checkArtifactConsistency(r *Receipt) error {
@@ -99,8 +99,10 @@ func checkArtifactConsistency(r *Receipt) error {
 
 // --- level helpers (shared with receipt.go) ---
 
-// isProofLevel reports whether s is a real proof level L1..L4 (not L0/empty).
-func isProofLevel(s string) bool {
+// IsProofLevel reports whether s is a real proof level L1..L4 (not L0/empty).
+// Exported so the sibling pkg/proofreceipt converters can classify a level
+// string against the canonical ladder.
+func IsProofLevel(s string) bool {
 	switch strings.ToUpper(strings.TrimSpace(s)) {
 	case "L1", "L2", "L3", "L4":
 		return true
@@ -108,6 +110,9 @@ func isProofLevel(s string) bool {
 	return false
 }
 
-func isLevelL4(s string) bool { return strings.EqualFold(strings.TrimSpace(s), "L4") }
+// IsLevelL4 reports whether s names proof level L4 exactly. Exported so the
+// sibling pkg/proofreceipt converters (from_metamask_acceptance.go) can map a
+// level string without re-implementing the comparison.
+func IsLevelL4(s string) bool { return strings.EqualFold(strings.TrimSpace(s), "L4") }
 
 func hasL4(s string) bool { return strings.Contains(strings.ToUpper(s), "L4") }

@@ -4,22 +4,25 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-// Package proofreceipt is the ONE compact proof receipt that appears
-// everywhere Infrix proves something — the CLI, the SDK, Nexus, Cinema, the
-// examples, release evidence, and the hosted playground (adoption-06).
+// Package proofreceiptschema is the stdlib-only compact proof-receipt schema:
+// the wire types, the fail-closed Validate rules, and the text/HTML renderers
+// for the ONE receipt that appears everywhere Infrix proves something — the
+// CLI, the SDK, Nexus, Cinema, the examples, release evidence, and the hosted
+// playground (adoption-06). It is the Tier-0 contract leaf carved out of
+// pkg/proofreceipt (docs/extraction-plan); the per-surface converters that
+// depend on verifykit/releasekit (from_verifykit.go / from_releasekit.go /
+// from_metamask_acceptance.go) stay in the sibling pkg/proofreceipt, which
+// re-exports this schema so existing importers are unaffected.
 //
 // A receipt answers the four questions a non-expert actually has —
 // "was this verified? by whom? without trusting what? can I inspect the
 // details?" — while letting an expert expand into the full cryptographic
-// material via DetailsRef. Every proof-producing surface converts its native
-// result into THIS schema (see from_verifykit.go / from_releasekit.go /
-// from_metamask_acceptance.go), so the trust question is answered the same way
-// no matter where the proof came from.
+// material via DetailsRef.
 //
 // The schema is fail-closed: Validate rejects any receipt that overclaims
 // (L4 without L0, witness without L0, l0Verified without evidence, verified
 // with no passing check, a missing nodeTrusted, conflicting artifact IDs).
-package proofreceipt
+package proofreceiptschema
 
 import (
 	"encoding/json"
@@ -102,8 +105,10 @@ func New() *Receipt {
 	return &Receipt{Version: Version, Warnings: []string{}}
 }
 
-// boolPtr is a convenience for setting Assurance.NodeTrusted.
-func boolPtr(b bool) *bool { return &b }
+// BoolPtr is a convenience for setting Assurance.NodeTrusted. Exported so the
+// per-surface converters in the sibling pkg/proofreceipt (from_*.go) can build
+// an Assurance with an explicit nodeTrusted answer.
+func BoolPtr(b bool) *bool { return &b }
 
 // NodeTrusted reports the receipt's node-trust answer (false when omitted —
 // callers should Validate to catch the omission).
@@ -113,7 +118,7 @@ func (r *Receipt) NodeTrusted() bool {
 
 // ClaimsL4 reports whether the receipt asserts L0-confirmed L4 assurance.
 func (r *Receipt) ClaimsL4() bool {
-	return r.Assurance.L0Verified || isLevelL4(r.Assurance.ProofLevel) || hasL4(r.Assurance.Label)
+	return r.Assurance.L0Verified || IsLevelL4(r.Assurance.ProofLevel) || hasL4(r.Assurance.Label)
 }
 
 // MarshalJSONIndent returns the canonical pretty JSON.

@@ -1,4 +1,4 @@
-package intent
+package intentschema
 
 // IntentGoalType identifies the category of an intent's desired outcome.
 type IntentGoalType string
