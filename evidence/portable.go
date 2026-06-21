@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package evidence
+package evidenceschema
 
 import (
 	"crypto/sha256"
@@ -108,7 +108,7 @@ type PortableEvidencePackage struct {
 	// reproduces the recorded outcome. The schema lives in
 	// pkg/verifykit/replaycapsule; it is carried here as raw JSON so the
 	// evidence layer stays schema-agnostic. It is committed to ExportHash
-	// (see computePortableExportHash) so a tampered capsule fails the
+	// (see ComputePortableExportHash) so a tampered capsule fails the
 	// offline integrity gate. Empty for legacy / non-production bundles.
 	// platform-review-3 Epic 2 (2026-06).
 	ReplayCapsule json.RawMessage `json:"replayCapsule,omitempty"`
@@ -171,16 +171,16 @@ type TrustSnapshotEntry struct {
 // field requires populating it on the input struct, not adjusting
 // every caller's positional arguments. P1-005 closure (2026-05-02).
 type BuildPortablePackageInputs struct {
-	BundleData       json.RawMessage
-	PlanHash         [32]byte
-	OutcomeDigest    [32]byte
-	TrustSnapshot    []TrustSnapshotEntry
-	InclusionProofs  []MerkleInclusionProof
-	AnchorProof      *EvidenceAnchorData
-	AnchorTxHash     string
-	AnchorBlock      uint64
-	PluginVersions   []PluginVersionEntry
-	PolicyDecisions  []DecisionProofRef
+	BundleData      json.RawMessage
+	PlanHash        [32]byte
+	OutcomeDigest   [32]byte
+	TrustSnapshot   []TrustSnapshotEntry
+	InclusionProofs []MerkleInclusionProof
+	AnchorProof     *EvidenceAnchorData
+	AnchorTxHash    string
+	AnchorBlock     uint64
+	PluginVersions  []PluginVersionEntry
+	PolicyDecisions []DecisionProofRef
 	// ReplayCapsule is the optional deterministic-replay material
 	// (raw JSON; schema in pkg/verifykit/replaycapsule). platform-review-3
 	// Epic 2.
@@ -236,7 +236,7 @@ func BuildPortablePackageWithBindings(in BuildPortablePackageInputs) (*PortableE
 		}
 		pkg.PolicyDecisionDigest = digest
 	}
-	hash, err := computePortableExportHash(pkg)
+	hash, err := ComputePortableExportHash(pkg)
 	if err != nil {
 		return nil, fmt.Errorf("evidence: compute export hash: %w", err)
 	}
@@ -253,7 +253,7 @@ func computePolicyDecisionDigest(decisions []DecisionProofRef) ([32]byte, error)
 	if len(decisions) == 0 {
 		return [32]byte{}, nil
 	}
-	canonical, err := canonicalJSON(decisions)
+	canonical, err := CanonicalJSON(decisions)
 	if err != nil {
 		return [32]byte{}, err
 	}
@@ -309,7 +309,7 @@ func VerifyPortablePackage(pkg *PortableEvidencePackage) error {
 	}
 
 	// 2. Export hash integrity.
-	computed, err := computePortableExportHash(pkg)
+	computed, err := ComputePortableExportHash(pkg)
 	if err != nil {
 		return fmt.Errorf("evidence/portable: recompute export hash: %w", err)
 	}
@@ -454,7 +454,7 @@ func verifyPortablePlanHashBinding(pkg *PortableEvidencePackage, embedded *Evide
 	return fmt.Errorf("evidence/portable: PlanHash has no binding witness in embedded bundle (no approval evidence and not equal to OutcomeDigest — P1-005 cross-binding)")
 }
 
-// computePortableExportHash computes the SHA-256 of all portable
+// ComputePortableExportHash computes the SHA-256 of all portable
 // package fields except ExportHash and Signature. It uses the
 // canonical JSON encoding so that the resulting hash is reproducible
 // across runs and across implementations conforming to PORTABLE_SPEC.md.
@@ -462,7 +462,7 @@ func verifyPortablePlanHashBinding(pkg *PortableEvidencePackage, embedded *Evide
 // P1-005 closure (2026-05-02) extended the intermediate map with the
 // new cross-binding fields. Adding fields here is a wire-format change
 // that requires bumping PortableEvidencePackageVersion.
-func computePortableExportHash(pkg *PortableEvidencePackage) ([32]byte, error) {
+func ComputePortableExportHash(pkg *PortableEvidencePackage) ([32]byte, error) {
 	// Build a deterministic intermediate representation that excludes
 	// ExportHash and Signature.
 	intermediate := map[string]any{
@@ -479,7 +479,7 @@ func computePortableExportHash(pkg *PortableEvidencePackage) ([32]byte, error) {
 		"policyDecisionDigest": pkg.PolicyDecisionDigest,
 		"replayCapsule":        json.RawMessage(pkg.ReplayCapsule),
 	}
-	canonical, err := canonicalJSON(intermediate)
+	canonical, err := CanonicalJSON(intermediate)
 	if err != nil {
 		return [32]byte{}, err
 	}

@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package evidence
+package evidenceschema
 
 import (
 	"bytes"
@@ -33,12 +33,12 @@ import (
 // portable verifier in another language disagrees on number formatting
 // the spec MUST be tightened before declaring multi-language portability.
 
-// canonicalJSON returns a deterministic JSON encoding suitable for
+// CanonicalJSON returns a deterministic JSON encoding suitable for
 // use as a hashing input. For struct values the result is identical to
 // json.Marshal. For map values keys are sorted lexicographically. For
 // any other input, the value is round-tripped through map normalization
 // to guarantee key ordering in nested maps.
-func canonicalJSON(v any) ([]byte, error) {
+func CanonicalJSON(v any) ([]byte, error) {
 	// Round-trip through json.Marshal -> arbitrary -> sortedMarshal so
 	// every map nested inside an interface{} is normalized.
 	raw, err := json.Marshal(v)
@@ -110,8 +110,8 @@ func writeCanonical(buf *bytes.Buffer, v any) error {
 	}
 }
 
-// sha256Sum32 is the [32]byte form of sha256.Sum256 used throughout
+// Sha256Sum32 is the [32]byte form of sha256.Sum256 used throughout
 // the evidence package.
-func sha256Sum32(data []byte) [32]byte {
+func Sha256Sum32(data []byte) [32]byte {
 	return sha256.Sum256(data)
 }

@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package evidence
+package evidenceschema
 
 import (
 	"crypto/sha256"
@@ -265,9 +265,9 @@ type EvidenceBundle struct {
 
 	// Content populated based on Level.
 	// Evidence-specific fields (NOT in OutcomeRecord):
-	PolicyDecisions  []DecisionProofRef    `json:"policyDecisions,omitempty"`
-	TrustAssumptions []TrustAssumption     `json:"trustAssumptions,omitempty"`
-	ExternalProofs   []ExternalProofRef    `json:"externalProofs,omitempty"`
+	PolicyDecisions  []DecisionProofRef `json:"policyDecisions,omitempty"`
+	TrustAssumptions []TrustAssumption  `json:"trustAssumptions,omitempty"`
+	ExternalProofs   []ExternalProofRef `json:"externalProofs,omitempty"`
 
 	// Deprecated: The following fields duplicate data that lives
 	// authoritatively in OutcomeRecord. Use OutcomeRecordID to
