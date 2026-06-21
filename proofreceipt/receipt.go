@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-// Package proofreceiptschema is the stdlib-only compact proof-receipt schema:
+// Package proofreceipt is the stdlib-only compact proof-receipt schema:
 // the wire types, the fail-closed Validate rules, and the text/HTML renderers
 // for the ONE receipt that appears everywhere Infrix proves something — the
 // CLI, the SDK, Nexus, Cinema, the examples, release evidence, and the hosted
@@ -22,7 +22,7 @@
 // The schema is fail-closed: Validate rejects any receipt that overclaims
 // (L4 without L0, witness without L0, l0Verified without evidence, verified
 // with no passing check, a missing nodeTrusted, conflicting artifact IDs).
-package proofreceiptschema
+package proofreceipt
 
 import (
 	"encoding/json"

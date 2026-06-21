@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package intentschema
+package intent
 
 import (
 	"go/parser"
@@ -17,7 +17,7 @@ import (
 )
 
 // TestIntentSchemaIsStdlibOnly is the Tier-0 schema-leaf import fence
-// (docs/extraction-plan §6). pkg/intentschema is the extractable intent
+// (docs/extraction-plan §6). modules/infrix-schema/intent is the extractable intent
 // goal/type vocabulary: it MUST depend on nothing but the Go standard library
 // (in fact it currently imports nothing at all) so it can be relocated to its
 // own module/repo without pulling the governance core along. Any non-stdlib
@@ -53,7 +53,7 @@ func TestIntentSchemaIsStdlibOnly(t *testing.T) {
 			path := strings.Trim(imp.Path.Value, `"`)
 			first, _, _ := strings.Cut(path, "/")
 			if strings.Contains(first, ".") {
-				t.Errorf("pkg/intentschema import fence: %s imports %q, which is NOT a Go "+
+				t.Errorf("modules/infrix-schema/intent import fence: %s imports %q, which is NOT a Go "+
 					"standard-library package. The schema kernel must stay stdlib-only so it "+
 					"can be extracted as a leaf module (docs/extraction-plan). Move whatever "+
 					"needs this dependency into pkg/intent (the runtime side) instead.",
@@ -62,7 +62,7 @@ func TestIntentSchemaIsStdlibOnly(t *testing.T) {
 		}
 	}
 	if !sawProductionFile {
-		t.Fatalf("pkg/intentschema import fence parsed zero production files — the fence would "+
+		t.Fatalf("modules/infrix-schema/intent import fence parsed zero production files — the fence would "+
 			"pass vacuously; check the package directory %s", pkgDir)
 	}
 }

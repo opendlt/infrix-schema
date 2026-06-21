@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package evidenceschema
+package evidence
 
 import (
 	"go/parser"
@@ -17,7 +17,7 @@ import (
 )
 
 // TestEvidenceSchemaIsStdlibOnly is the Tier-0 schema-leaf import fence
-// (docs/extraction-plan §6). pkg/evidenceschema is the extractable
+// (docs/extraction-plan §6). modules/infrix-schema/evidence is the extractable
 // contract/verification kernel: it MUST depend on nothing but the Go
 // standard library so it can be relocated to its own module/repo without
 // dragging the governance core along. Any non-stdlib import here — most
@@ -59,7 +59,7 @@ func TestEvidenceSchemaIsStdlibOnly(t *testing.T) {
 			path := strings.Trim(imp.Path.Value, `"`)
 			first, _, _ := strings.Cut(path, "/")
 			if strings.Contains(first, ".") {
-				t.Errorf("pkg/evidenceschema import fence: %s imports %q, which is "+
+				t.Errorf("modules/infrix-schema/evidence import fence: %s imports %q, which is "+
 					"NOT a Go standard-library package. The schema kernel must stay "+
 					"stdlib-only so it can be extracted as a leaf module "+
 					"(docs/extraction-plan). Move whatever needs this dependency "+
@@ -69,7 +69,7 @@ func TestEvidenceSchemaIsStdlibOnly(t *testing.T) {
 		}
 	}
 	if !sawProductionFile {
-		t.Fatalf("pkg/evidenceschema import fence parsed zero production files — the "+
+		t.Fatalf("modules/infrix-schema/evidence import fence parsed zero production files — the "+
 			"fence would pass vacuously; check the package directory %s", pkgDir)
 	}
 }

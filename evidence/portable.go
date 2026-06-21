@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package evidenceschema
+package evidence
 
 import (
 	"crypto/sha256"
@@ -293,10 +293,10 @@ func computePolicyDecisionDigest(decisions []DecisionProofRef) ([32]byte, error)
 //     PolicyDecisionDigest equals the canonical-JSON SHA-256 of the
 //     embedded bundle's PolicyDecisions slice.
 //  10. PluginVersions entries (when present) carry non-empty
-//      PluginID + Version + ImplementationHash. Empty slice is
-//      permitted for bundles that didn't dispatch through the plugin
-//      registry, but a partially-populated entry is a structural
-//      defect.
+//     PluginID + Version + ImplementationHash. Empty slice is
+//     permitted for bundles that didn't dispatch through the plugin
+//     registry, but a partially-populated entry is a structural
+//     defect.
 func VerifyPortablePackage(pkg *PortableEvidencePackage) error {
 	if pkg == nil {
 		return fmt.Errorf("evidence/portable: package is nil")

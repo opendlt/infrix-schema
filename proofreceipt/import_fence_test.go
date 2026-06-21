@@ -4,7 +4,7 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-package proofreceiptschema
+package proofreceipt
 
 import (
 	"go/parser"
@@ -17,7 +17,7 @@ import (
 )
 
 // TestProofReceiptSchemaIsStdlibOnly is the Tier-0 schema-leaf import fence
-// (docs/extraction-plan §6). pkg/proofreceiptschema is the extractable
+// (docs/extraction-plan §6). modules/infrix-schema/proofreceipt is the extractable
 // proof-receipt schema (wire types + fail-closed Validate + renderers): it
 // MUST depend on nothing but the Go standard library so it can be relocated to
 // its own module/repo. The verifykit/releasekit-dependent converters live in
@@ -54,7 +54,7 @@ func TestProofReceiptSchemaIsStdlibOnly(t *testing.T) {
 			path := strings.Trim(imp.Path.Value, `"`)
 			first, _, _ := strings.Cut(path, "/")
 			if strings.Contains(first, ".") {
-				t.Errorf("pkg/proofreceiptschema import fence: %s imports %q, which is NOT a Go "+
+				t.Errorf("modules/infrix-schema/proofreceipt import fence: %s imports %q, which is NOT a Go "+
 					"standard-library package. The schema kernel must stay stdlib-only so it can "+
 					"be extracted as a leaf module (docs/extraction-plan). Keep anything that needs "+
 					"verifykit/releasekit (or any other Infrix package) in the sibling "+
@@ -64,7 +64,7 @@ func TestProofReceiptSchemaIsStdlibOnly(t *testing.T) {
 		}
 	}
 	if !sawProductionFile {
-		t.Fatalf("pkg/proofreceiptschema import fence parsed zero production files — the fence "+
+		t.Fatalf("modules/infrix-schema/proofreceipt import fence parsed zero production files — the fence "+
 			"would pass vacuously; check the package directory %s", pkgDir)
 	}
 }

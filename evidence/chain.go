@@ -4,13 +4,13 @@
 // license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-// Package evidenceschema provides the stdlib-only contract/verification
+// Package evidence provides the stdlib-only contract/verification
 // kernel for governed-execution evidence: the cryptographic evidence chain
 // that links intent → plan → policy decision → execution → outcome → state
 // root, the evidence bundle and portable-package wire formats, and their
 // offline verifiers. It depends on no other Infrix package so it can be
 // extracted as the leaf contract module (see docs/extraction-plan).
-package evidenceschema
+package evidence
 
 import (
 	"crypto/sha256"
