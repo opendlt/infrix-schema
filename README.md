@@ -1,6 +1,6 @@
 # infrix-schema
 
-**The stdlib-only contract / verification kernel for [Infrix](https://github.com/opendlt/infrix-accumen).**
+**The stdlib-only contract / verification kernel for [Infrix](https://github.com/opendlt).**
 
 `infrix-schema` is the Tier-0 contract module extracted from the Infrix
 monorepo. It defines the canonical, wire-stable shapes that everything else in
