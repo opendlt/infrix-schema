@@ -1,5 +1,9 @@
 # infrix-schema
 
+> **Infrix — governed, verifiable execution on Accumulate.** New here? Start at
+> [infrix.opendlt.org](https://infrix.opendlt.org) · try it live at
+> [play.infrix.opendlt.org](https://play.infrix.opendlt.org).
+
 **The stdlib-only contract / verification kernel for [Infrix](https://github.com/opendlt).**
 
 `infrix-schema` is the Tier-0 contract module extracted from the Infrix
