@@ -50,6 +50,13 @@ const (
 	GoalContractDeploy IntentGoalType = "CONTRACT_DEPLOY"
 	GoalContractCall   IntentGoalType = "CONTRACT_CALL"
 
+	// EVM lifecycle (DX P6-5 — the governed Solidity/EVM deploy door). Raw
+	// EVM bytecode/calldata wraps as a canonical intent and routes through
+	// the same spine as every other goal (no raw-tx bypass). The evidence
+	// link is raw_tx_wrapped_as_intent.
+	GoalEVMDeploy IntentGoalType = "EVM_DEPLOY"
+	GoalEVMCall   IntentGoalType = "EVM_CALL"
+
 	// Swarm operations (Phase 4 — governable multi-contract coordination)
 	GoalSwarmCreate     IntentGoalType = "SWARM_CREATE"
 	GoalSwarmJoin       IntentGoalType = "SWARM_JOIN"
@@ -247,6 +254,8 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalDisclosureRevoke:     true,
 	GoalContractDeploy:       true,
 	GoalContractCall:         true,
+	GoalEVMDeploy:            true,
+	GoalEVMCall:              true,
 	GoalSwarmCreate:          true,
 	GoalSwarmJoin:            true,
 	GoalSwarmCoordinate:      true,
