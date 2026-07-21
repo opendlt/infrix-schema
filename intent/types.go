@@ -45,6 +45,11 @@ const (
 	// Disclosure governance intent types (G-13 Phase 9)
 	GoalDisclosureGrant  IntentGoalType = "DISCLOSURE_GRANT"
 	GoalDisclosureRevoke IntentGoalType = "DISCLOSURE_REVOKE"
+	// GoalDisclosureRegisterKey publishes an authority's ML-KEM public
+	// encryption key to the DisclosureKeyRegistry (Plan-1 AABSD). Routing it as
+	// a canonical intent gives the governed key-object write real spine
+	// provenance (intent + plan lineage) instead of a synthetic context.
+	GoalDisclosureRegisterKey IntentGoalType = "DISCLOSURE_REGISTER_KEY"
 
 	// Contract lifecycle (Phase 4 — all contract ops enter through intent)
 	GoalContractDeploy IntentGoalType = "CONTRACT_DEPLOY"
@@ -250,8 +255,9 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalRoleSuspend:          true,
 	GoalRoleEmergency:        true,
 	GoalRoleNormalize:        true,
-	GoalDisclosureGrant:      true,
-	GoalDisclosureRevoke:     true,
+	GoalDisclosureGrant:       true,
+	GoalDisclosureRevoke:      true,
+	GoalDisclosureRegisterKey: true,
 	GoalContractDeploy:       true,
 	GoalContractCall:         true,
 	GoalEVMDeploy:            true,
