@@ -62,6 +62,17 @@ const (
 	GoalEVMDeploy IntentGoalType = "EVM_DEPLOY"
 	GoalEVMCall   IntentGoalType = "EVM_CALL"
 
+	// Ecosystem-VM execution doors — the governed front doors for the Move,
+	// Solana (SVM/sBPF), eBPF, and CosmWasm execution families. Like EVM_DEPLOY/
+	// EVM_CALL, each wraps a program (bytecode/module/ELF) + its inputs as a
+	// canonical intent and lowers to the typed plan step (move_exec / svm_exec /
+	// ebpf_exec / cosmwasm_exec) that dispatches to the production runtime,
+	// entering through the same spine as every other goal (no raw-exec bypass).
+	GoalMoveExec     IntentGoalType = "MOVE_EXEC"
+	GoalSVMExec      IntentGoalType = "SVM_EXEC"
+	GoalEBPFExec     IntentGoalType = "EBPF_EXEC"
+	GoalCosmWasmExec IntentGoalType = "COSMWASM_EXEC"
+
 	// Swarm operations (Phase 4 — governable multi-contract coordination)
 	GoalSwarmCreate     IntentGoalType = "SWARM_CREATE"
 	GoalSwarmJoin       IntentGoalType = "SWARM_JOIN"
@@ -262,6 +273,10 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalContractCall:         true,
 	GoalEVMDeploy:            true,
 	GoalEVMCall:              true,
+	GoalMoveExec:             true,
+	GoalSVMExec:              true,
+	GoalEBPFExec:             true,
+	GoalCosmWasmExec:         true,
 	GoalSwarmCreate:          true,
 	GoalSwarmJoin:            true,
 	GoalSwarmCoordinate:      true,
