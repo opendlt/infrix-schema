@@ -34,8 +34,33 @@ type Proof struct {
 // CredentialStatus references a revocation/status list entry (see
 // evidence.CredentialStatusListRecord / CredentialRevocationRecord).
 type CredentialStatus struct {
-	ID              string `json:"id,omitempty"`
-	Type            string `json:"type,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Type string `json:"type,omitempty"`
+
+	// RevocationListIndex and RevocationListCredential are the fields Infrix
+	// ACTUALLY EMITS on a StatusList2021Entry.
+	//
+	// They were absent until 2026-09-10, and their absence was not cosmetic: a
+	// field this struct does not model is DROPPED on unmarshal, so the
+	// re-marshalled credential SigningContent hashes is not the document the
+	// issuer signed, and every signature fails. Measured that day — a
+	// node-issued credential reached the offline verifier with a perfectly
+	// valid signature and "signature does not verify against the issuer key",
+	// because these two fields vanished between parse and re-marshal.
+	//
+	// Declared HERE, immediately after Type, because SigningContent re-marshals
+	// in struct-field order and the issuer emits them in this position. See
+	// TestSigningContentSurvivesAnInfrixCredentialRoundTrip.
+	//
+	// NOTE ON THE NAMES: a StatusList2021Entry should carry statusListIndex and
+	// statusListCredential; these are the older RevocationList2020 names. That
+	// mismatch is real and is tracked separately as W.SURFACE.StatusList2021Entry
+	// — it is NOT fixed here, because renaming what the node emits is a wire
+	// change, and modelling what is actually emitted is what makes verification
+	// work today.
+	RevocationListIndex      string `json:"revocationListIndex,omitempty"`
+	RevocationListCredential string `json:"revocationListCredential,omitempty"`
+
 	StatusListID    string `json:"statusListId,omitempty"`
 	StatusListIndex uint64 `json:"statusListIndex,omitempty"`
 }
