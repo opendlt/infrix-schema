@@ -118,6 +118,16 @@ const (
 	// write. Bounded by construction to first non-bootstrap block.
 	GoalBootstrapRole IntentGoalType = "BOOTSTRAP_ROLE"
 
+	// System-origin bootstrap capability intent: grants the initial
+	// operator-issued capabilities on a fresh Infrix instance as a typed,
+	// evidence-producing spine transition rather than a direct append to the
+	// runtime's grant list. Its peer BOOTSTRAP_ROLE exists because the
+	// governed grant path needs an admin to approve it and a fresh node has
+	// none; capability escalation had the same hole, reachable at any time
+	// through the operator-state channel. Bounded the same way: it is
+	// admissible only while the node has no governance.
+	GoalBootstrapCapability IntentGoalType = "BOOTSTRAP_CAPABILITY"
+
 	// System-origin periodic anchor intent (Gap 2 closure): routes
 	// block-boundary state-root and audit-checkpoint anchor writes
 	// through the canonical spine so every AnchoredRecord carries an
@@ -304,6 +314,7 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalTrustProfileCreate:    true,
 	GoalTrustProfileUpdate:    true,
 	GoalBootstrapRole:         true,
+	GoalBootstrapCapability:   true,
 	GoalSystemAnchorPeriodic:  true,
 	GoalApprovalInvalidate:    true,
 	GoalRoleExpire:            true,
