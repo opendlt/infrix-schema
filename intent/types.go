@@ -155,6 +155,51 @@ const (
 	// when grant provenance was absent.
 	GoalCapabilityExpire IntentGoalType = "CAPABILITY_EXPIRE"
 
+	// System-origin disclosure-expiry intent: emitted per block-close /
+	// maintenance sweep before DisclosureRegistry.ExpireStaleGrants moves
+	// every active disclosure grant past its temporal bound (EffectiveUntil
+	// block / EffectiveUntilSeconds wall-clock) to "expired", so the store
+	// state and the governed record both reflect expiry under the sweep's
+	// IntentID/PlanID.
+	GoalDisclosureExpire IntentGoalType = "DISCLOSURE_EXPIRE"
+
+	// System-origin policy-derived role re-check: emitted per block-close /
+	// maintenance sweep before PolicyRoleDeriver.RecheckAll re-evaluates every
+	// policy_derived role binding against its policy, suspending (or, on
+	// recovery, reactivating) bindings the policy no longer admits, so each
+	// change carries the sweep's IntentID/PlanID rather than a synthetic one.
+	GoalRolePolicyRecheck IntentGoalType = "ROLE_POLICY_RECHECK"
+
+	// System-origin settlement finality sweep (operator ruling, session 37):
+	// emitted per block-close / maintenance tick, ONLY when a settling
+	// instruction is due, before the settlement FinalityMonitor drives every
+	// settling instruction's legs to final — releasing escrow whose release
+	// conditions are met, and refunding escrow legs and failing bridge legs
+	// past their deadline — so each of those writes carries the sweep's
+	// IntentID/PlanID rather than a synthetic one. It executes terms the
+	// parties already agreed at SETTLEMENT admission.
+	GoalSettlementFinalitySweep IntentGoalType = "SETTLEMENT_FINALITY_SWEEP"
+
+	// System-origin trust freshness sweep (operator ruling, session 37):
+	// emitted per block-close / maintenance tick, ONLY when an active trust
+	// profile's freshness window has lapsed, before the trust registry
+	// degrades it — so each degradation (and the approval invalidation its
+	// degradation callback drives) carries the sweep's IntentID/PlanID and
+	// reaches the profile's durable record. Freshness failure is one of the
+	// three named trust-drift drivers (Gap 11).
+	GoalTrustFreshnessSweep IntentGoalType = "TRUST_FRESHNESS_SWEEP"
+
+	// System-origin pending-state reap (operator ruling, session 37): emitted
+	// per block-close / maintenance tick, ONLY when a parked async record is
+	// due, before the PendingStateReaper applies the spec §10.3 lifecycle —
+	// timing out bridge / external-adapter / wait records past their
+	// deadline (dispatching the plugin's compensator where the record
+	// requires one), failing or pausing them on trust drift, and completing
+	// or failing them from the originating plugin's poll — so each of those
+	// transitions carries the reap's IntentID/PlanID rather than a synthetic
+	// one.
+	GoalPendingReap IntentGoalType = "PENDING_REAP"
+
 	// Sponsor governance (Gap 13 fourth-pass closure): the prior path
 	// — handleRegisterSponsor RPC → in-memory sponsorRegistry mutation
 	// — bypassed the spine entirely. Sponsor configuration grants gas /
@@ -278,61 +323,66 @@ var ValidGoalTypes = map[IntentGoalType]bool{
 	GoalObjectCreate: true, GoalObjectMutate: true,
 	GoalPolicyBind: true, GoalCapabilityGrant: true, GoalWorkflowStart: true,
 	GoalCredentialIssue: true, GoalCredentialRevoke: true, GoalVaultCreate: true, GoalSettlement: true,
-	GoalSettlementNetting:     true,
-	GoalObjectTransition:      true,
-	GoalPolicyChange:          true,
-	GoalContractUpgrade:       true,
-	GoalPatchPropagation:      true,
-	GoalRevertTransaction:     true,
-	GoalRoleAssign:            true,
-	GoalRoleRevoke:            true,
-	GoalRoleSuspend:           true,
-	GoalRoleEmergency:         true,
-	GoalRoleNormalize:         true,
-	GoalDisclosureGrant:       true,
-	GoalDisclosureRevoke:      true,
-	GoalDisclosureApprove:     true,
-	GoalDisclosureRegisterKey: true,
-	GoalContractDeploy:        true,
-	GoalContractCall:          true,
-	GoalEVMDeploy:             true,
-	GoalEVMCall:               true,
-	GoalMoveExec:              true,
-	GoalSVMExec:               true,
-	GoalEBPFExec:              true,
-	GoalCosmWasmExec:          true,
-	GoalSwarmCreate:           true,
-	GoalSwarmJoin:             true,
-	GoalSwarmCoordinate:       true,
-	GoalSwarmDissolve:         true,
-	GoalShapeTransition:       true,
-	GoalBridgeSend:            true,
-	GoalBridgeReceive:         true,
-	GoalCapabilityRevoke:      true,
-	GoalPolicyUnbind:          true,
-	GoalAnchorForce:           true,
-	GoalTrustProfileCreate:    true,
-	GoalTrustProfileUpdate:    true,
-	GoalBootstrapRole:         true,
-	GoalBootstrapCapability:   true,
-	GoalSystemAnchorPeriodic:  true,
-	GoalApprovalInvalidate:    true,
-	GoalRoleExpire:            true,
-	GoalCapabilityExpire:      true,
-	GoalSponsorRegister:       true,
-	GoalSponsorUpdate:         true,
-	GoalSponsorRevoke:         true,
-	GoalSponsorPause:          true,
-	GoalSponsorResume:         true,
-	GoalDisputeResolve:        true,
-	GoalRulePackEval:          true,
-	GoalVerifierRun:           true,
-	GoalExternalAdapterCall:   true,
-	GoalAgentRun:              true,
-	GoalConfidentialExec:      true,
-	GoalSubsystemAction:       true,
-	GoalPluginUpgrade:         true,
-	GoalPluginRegister:        true,
+	GoalSettlementNetting:       true,
+	GoalObjectTransition:        true,
+	GoalPolicyChange:            true,
+	GoalContractUpgrade:         true,
+	GoalPatchPropagation:        true,
+	GoalRevertTransaction:       true,
+	GoalRoleAssign:              true,
+	GoalRoleRevoke:              true,
+	GoalRoleSuspend:             true,
+	GoalRoleEmergency:           true,
+	GoalRoleNormalize:           true,
+	GoalDisclosureGrant:         true,
+	GoalDisclosureRevoke:        true,
+	GoalDisclosureApprove:       true,
+	GoalDisclosureRegisterKey:   true,
+	GoalContractDeploy:          true,
+	GoalContractCall:            true,
+	GoalEVMDeploy:               true,
+	GoalEVMCall:                 true,
+	GoalMoveExec:                true,
+	GoalSVMExec:                 true,
+	GoalEBPFExec:                true,
+	GoalCosmWasmExec:            true,
+	GoalSwarmCreate:             true,
+	GoalSwarmJoin:               true,
+	GoalSwarmCoordinate:         true,
+	GoalSwarmDissolve:           true,
+	GoalShapeTransition:         true,
+	GoalBridgeSend:              true,
+	GoalBridgeReceive:           true,
+	GoalCapabilityRevoke:        true,
+	GoalPolicyUnbind:            true,
+	GoalAnchorForce:             true,
+	GoalTrustProfileCreate:      true,
+	GoalTrustProfileUpdate:      true,
+	GoalBootstrapRole:           true,
+	GoalBootstrapCapability:     true,
+	GoalSystemAnchorPeriodic:    true,
+	GoalApprovalInvalidate:      true,
+	GoalRoleExpire:              true,
+	GoalCapabilityExpire:        true,
+	GoalDisclosureExpire:        true,
+	GoalRolePolicyRecheck:       true,
+	GoalSettlementFinalitySweep: true,
+	GoalTrustFreshnessSweep:     true,
+	GoalPendingReap:             true,
+	GoalSponsorRegister:         true,
+	GoalSponsorUpdate:           true,
+	GoalSponsorRevoke:           true,
+	GoalSponsorPause:            true,
+	GoalSponsorResume:           true,
+	GoalDisputeResolve:          true,
+	GoalRulePackEval:            true,
+	GoalVerifierRun:             true,
+	GoalExternalAdapterCall:     true,
+	GoalAgentRun:                true,
+	GoalConfidentialExec:        true,
+	GoalSubsystemAction:         true,
+	GoalPluginUpgrade:           true,
+	GoalPluginRegister:          true,
 	// G-24 closed-loop operational controls.
 	GoalGasScheduleUpdate: true,
 	GoalRateLimitUpdate:   true,
