@@ -28,7 +28,8 @@ type Proof struct {
 	ProofPurpose       string `json:"proofPurpose,omitempty"`
 	Challenge          string `json:"challenge,omitempty"` // VP: binds to a verifier nonce
 	Domain             string `json:"domain,omitempty"`
-	ProofValue         string `json:"proofValue"` // hex-encoded Ed25519 signature
+	Nonce              string `json:"nonce,omitempty"` // VP: binds to one verifier session
+	ProofValue         string `json:"proofValue"`      // hex-encoded Ed25519 signature
 }
 
 // CredentialStatus references a revocation/status list entry (see
@@ -100,23 +101,5 @@ func (vc VerifiableCredential) SigningContent() ([]byte, error) {
 		return nil, err
 	}
 	sum := sha256.Sum256(b)
-	return sum[:], nil
-}
-
-// SigningContent returns the deterministic bytes a holder signs for this
-// presentation, bound to the verifier's challenge: SHA-256 of the proof-omitted
-// presentation concatenated with the challenge. Passing the challenge explicitly
-// keeps the binding unambiguous even if Proof.Challenge is absent.
-func (vp VerifiablePresentation) SigningContent(challenge string) ([]byte, error) {
-	unsigned := vp
-	unsigned.Proof = nil
-	b, err := json.Marshal(unsigned)
-	if err != nil {
-		return nil, err
-	}
-	h := sha256.New()
-	h.Write(b)
-	h.Write([]byte(challenge))
-	sum := h.Sum(nil)
 	return sum[:], nil
 }
