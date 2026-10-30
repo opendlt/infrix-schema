@@ -18,6 +18,9 @@ package credential
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
 )
 
 // Proof is a linked-data proof over a credential or presentation.
@@ -28,41 +31,82 @@ type Proof struct {
 	ProofPurpose       string `json:"proofPurpose,omitempty"`
 	Challenge          string `json:"challenge,omitempty"` // VP: binds to a verifier nonce
 	Domain             string `json:"domain,omitempty"`
-	ProofValue         string `json:"proofValue"` // hex-encoded Ed25519 signature
+	Nonce              string `json:"nonce,omitempty"` // VP: binds to one verifier session
+	ProofValue         string `json:"proofValue"`      // hex-encoded Ed25519 signature
 }
 
-// CredentialStatus references a revocation/status list entry (see
-// evidence.CredentialStatusListRecord / CredentialRevocationRecord).
+// CredentialStatus is a credential's StatusList2021Entry.
+//
+// The standard members (https://www.w3.org/community/reports/credentials/CG-FINAL-vc-status-list-2021-20230102/)
+// are statusPurpose, statusListIndex and statusListCredential, and statusListIndex is a STRING
+// ("94567"), not a number. New credentials carry only those. The two RevocationList2020 members
+// below them are what the issuer wrote under the same entry type before Wave D1d; a credential
+// issued then must still parse and verify, so the model keeps them, and Resolve names that form
+// with an explicit legacy label instead of treating the two spellings as one.
+//
+// Every member must be modelled: a member this struct does not declare is DROPPED on
+// unmarshal, so the re-marshalled credential SigningContent hashes is not the document the
+// issuer signed and every signature fails (measured 2026-09-10; see
+// TestSigningContentSurvivesAnInfrixCredentialRoundTrip). Declaration order is marshalling
+// order: id, type, the legacy pair, then the standard members.
 type CredentialStatus struct {
 	ID   string `json:"id,omitempty"`
 	Type string `json:"type,omitempty"`
 
-	// RevocationListIndex and RevocationListCredential are the fields Infrix
-	// ACTUALLY EMITS on a StatusList2021Entry.
-	//
-	// They were absent until 2026-09-10, and their absence was not cosmetic: a
-	// field this struct does not model is DROPPED on unmarshal, so the
-	// re-marshalled credential SigningContent hashes is not the document the
-	// issuer signed, and every signature fails. Measured that day — a
-	// node-issued credential reached the offline verifier with a perfectly
-	// valid signature and "signature does not verify against the issuer key",
-	// because these two fields vanished between parse and re-marshal.
-	//
-	// Declared HERE, immediately after Type, because SigningContent re-marshals
-	// in struct-field order and the issuer emits them in this position. See
-	// TestSigningContentSurvivesAnInfrixCredentialRoundTrip.
-	//
-	// NOTE ON THE NAMES: a StatusList2021Entry should carry statusListIndex and
-	// statusListCredential; these are the older RevocationList2020 names. That
-	// mismatch is real and is tracked separately as W.SURFACE.StatusList2021Entry
-	// — it is NOT fixed here, because renaming what the node emits is a wire
-	// change, and modelling what is actually emitted is what makes verification
-	// work today.
+	// RevocationListIndex and RevocationListCredential are the RevocationList2020 member names
+	// the issuer wrote before Wave D1d. Read-only legacy: Resolve labels them, no producer writes them.
 	RevocationListIndex      string `json:"revocationListIndex,omitempty"`
 	RevocationListCredential string `json:"revocationListCredential,omitempty"`
 
-	StatusListID    string `json:"statusListId,omitempty"`
-	StatusListIndex uint64 `json:"statusListIndex,omitempty"`
+	// StatusPurpose is "revocation" or "suspension".
+	StatusPurpose string `json:"statusPurpose,omitempty"`
+	// StatusListIndex is the entry's position in the list, an unsigned decimal string.
+	StatusListIndex string `json:"statusListIndex,omitempty"`
+	// StatusListCredential is the URL of the StatusList2021Credential.
+	StatusListCredential string `json:"statusListCredential,omitempty"`
+}
+
+// StatusForm names which member spelling a status entry uses.
+type StatusForm string
+
+const (
+	// StatusFormStandard is the StatusList2021 spelling: statusPurpose, statusListIndex, statusListCredential.
+	StatusFormStandard StatusForm = "StatusList2021"
+	// StatusFormLegacyRevocationList2020 is the earlier spelling, accepted ONLY under this label.
+	StatusFormLegacyRevocationList2020 StatusForm = "legacy:RevocationList2020"
+)
+
+// ErrStatusEntry is returned for an entry that is neither wholly standard nor wholly legacy.
+var ErrStatusEntry = errors.New("credential: malformed credentialStatus entry")
+
+// Resolve returns the entry's form, the status list credential URL and the index, or
+// ErrStatusEntry: a standard entry needs a defined statusPurpose, a decimal statusListIndex
+// and a statusListCredential; a legacy entry needs both RevocationList2020 members; an entry
+// that carries members of both spellings is refused because it would read as two different positions.
+func (s CredentialStatus) Resolve() (form StatusForm, list, index string, err error) {
+	standard := s.StatusPurpose != "" || s.StatusListIndex != "" || s.StatusListCredential != ""
+	legacy := s.RevocationListIndex != "" || s.RevocationListCredential != ""
+	switch {
+	case standard && legacy:
+		return "", "", "", fmt.Errorf("%w: it carries both the StatusList2021 and the RevocationList2020 member names", ErrStatusEntry)
+	case standard:
+		if s.StatusPurpose != "revocation" && s.StatusPurpose != "suspension" {
+			return "", "", "", fmt.Errorf("%w: statusPurpose %q is neither revocation nor suspension", ErrStatusEntry, s.StatusPurpose)
+		}
+		if n, perr := strconv.ParseUint(s.StatusListIndex, 10, 64); perr != nil || strconv.FormatUint(n, 10) != s.StatusListIndex {
+			return "", "", "", fmt.Errorf("%w: statusListIndex %q is not an unsigned decimal string", ErrStatusEntry, s.StatusListIndex)
+		}
+		if s.StatusListCredential == "" {
+			return "", "", "", fmt.Errorf("%w: statusListCredential is empty", ErrStatusEntry)
+		}
+		return StatusFormStandard, s.StatusListCredential, s.StatusListIndex, nil
+	case legacy:
+		if s.RevocationListIndex == "" || s.RevocationListCredential == "" {
+			return "", "", "", fmt.Errorf("%w: a RevocationList2020 entry needs both revocationListIndex and revocationListCredential", ErrStatusEntry)
+		}
+		return StatusFormLegacyRevocationList2020, s.RevocationListCredential, s.RevocationListIndex, nil
+	}
+	return "", "", "", fmt.Errorf("%w: no status list members", ErrStatusEntry)
 }
 
 // VerifiableCredential is a signed set of claims an issuer makes about a subject.
@@ -100,23 +144,5 @@ func (vc VerifiableCredential) SigningContent() ([]byte, error) {
 		return nil, err
 	}
 	sum := sha256.Sum256(b)
-	return sum[:], nil
-}
-
-// SigningContent returns the deterministic bytes a holder signs for this
-// presentation, bound to the verifier's challenge: SHA-256 of the proof-omitted
-// presentation concatenated with the challenge. Passing the challenge explicitly
-// keeps the binding unambiguous even if Proof.Challenge is absent.
-func (vp VerifiablePresentation) SigningContent(challenge string) ([]byte, error) {
-	unsigned := vp
-	unsigned.Proof = nil
-	b, err := json.Marshal(unsigned)
-	if err != nil {
-		return nil, err
-	}
-	h := sha256.New()
-	h.Write(b)
-	h.Write([]byte(challenge))
-	sum := h.Sum(nil)
 	return sum[:], nil
 }
