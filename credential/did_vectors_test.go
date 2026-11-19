@@ -29,7 +29,7 @@ import (
 // under the round trip (a normalizing transport would make the signed bytes differ from what a
 // parser-bearing surface signed).
 
-const pinnedDIDVectorsSHA256 = "cb65df93d854df65d8fd69a80b1f79566a4560da316e428ed311ce1adcf53ad6"
+const pinnedDIDVectorsSHA256 = "b1551ad989abaad6498f9abe37238df01418dbff5e50d61c01ceff1476b603ee"
 
 type didVectorSet struct {
 	Spec  string `json:"spec"`
