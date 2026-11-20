@@ -538,7 +538,7 @@ func ValidateRequesterMetadata(m map[string]any) error {
 	if err != nil {
 		return fmt.Errorf("%w: metadata does not encode as JSON: %v", ErrRequesterMetadata, err)
 	}
-	if len(enc) > MaxRequesterMetadataBytes+1 {
+	if len(enc) > MaxRequesterMetadataBytes {
 		return fmt.Errorf("%w: metadata encodes to %d bytes, over the %d-byte bound", ErrRequesterMetadata, len(enc), MaxRequesterMetadataBytes)
 	}
 	return nil
