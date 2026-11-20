@@ -81,3 +81,20 @@ func TestRequesterMetadataRidesInTheIntentApartFromTheNodesMetadata(t *testing.T
 		t.Fatalf("an intent with no requester metadata states none: %s", raw)
 	}
 }
+
+// TestRequesterMetadataIsMeasuredAsAClientMeasuresIt pins the measured encoding the SDKs mirror: '<', '>' and '&' count as one byte each (no HTML
+// escaping), U+2028 counts as six. The vector is repeated in infrix-sdk-js (requesterMetadata.test.ts) and infrix-crates (requester_metadata tests).
+func TestRequesterMetadataIsMeasuredAsAClientMeasuresIt(t *testing.T) {
+	// {"v":"<&>"} is 11 bytes unescaped; padded with x to exactly the bound, it is accepted.
+	pad := MaxRequesterMetadataBytes - len(`{"v":"<&>"}`)
+	at := map[string]any{"v": "<&>" + strings.Repeat("x", pad)}
+	if err := ValidateRequesterMetadata(at); err != nil {
+		t.Fatalf("'<', '&' and '>' must count one byte each: %v", err)
+	}
+	// U+2028 is written as   (six bytes): one in place of three x's of the bound is three bytes over.
+	sep := map[string]any{"v": "<&> " + strings.Repeat("x", pad-3)}
+	err := ValidateRequesterMetadata(sep)
+	if !errors.Is(err, ErrRequesterMetadata) || !strings.Contains(err.Error(), "encodes to 4099 bytes") {
+		t.Fatalf("U+2028 must count six bytes: %v", err)
+	}
+}

@@ -520,8 +520,12 @@ func ParseRequesterMetadata(raw []byte) (map[string]any, error) {
 	return m, nil
 }
 
-// ValidateRequesterMetadata refuses requester metadata with an empty or over-long key, or whose compact JSON encoding is over
+// ValidateRequesterMetadata refuses requester metadata with an empty or over-long key (its UTF-8 bytes), or whose compact JSON encoding is over
 // MaxRequesterMetadataBytes. nil and empty are valid (no metadata).
+//
+// The encoding measured is the one a client measures too: compact UTF-8 JSON as JSON.stringify writes it, with '<', '>' and '&' as themselves
+// (no HTML escaping). Go writes U+2028 and U+2029 as   and   (six bytes each, where JSON.stringify writes three), so a client counts
+// each as six bytes; the SDKs' pre-checks (infrix-sdk-js requesterMetadata, infrix-crates IntentSubmitRequest) measure exactly this.
 func ValidateRequesterMetadata(m map[string]any) error {
 	for k := range m {
 		if k == "" {
@@ -534,10 +538,13 @@ func ValidateRequesterMetadata(m map[string]any) error {
 	if len(m) == 0 {
 		return nil
 	}
-	enc, err := json.Marshal(m)
-	if err != nil {
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(m); err != nil {
 		return fmt.Errorf("%w: metadata does not encode as JSON: %v", ErrRequesterMetadata, err)
 	}
+	enc := bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
 	if len(enc) > MaxRequesterMetadataBytes {
 		return fmt.Errorf("%w: metadata encodes to %d bytes, over the %d-byte bound", ErrRequesterMetadata, len(enc), MaxRequesterMetadataBytes)
 	}
