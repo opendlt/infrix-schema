@@ -91,8 +91,8 @@ func TestRequesterMetadataIsMeasuredAsAClientMeasuresIt(t *testing.T) {
 	if err := ValidateRequesterMetadata(at); err != nil {
 		t.Fatalf("'<', '&' and '>' must count one byte each: %v", err)
 	}
-	// U+2028 is written as   (six bytes): one in place of three x's of the bound is three bytes over.
-	sep := map[string]any{"v": "<&> " + strings.Repeat("x", pad-3)}
+	// U+2028 is written as \u2028 (six bytes): one in place of three x's of the bound is three bytes over.
+	sep := map[string]any{"v": "<&>\u2028" + strings.Repeat("x", pad-3)}
 	err := ValidateRequesterMetadata(sep)
 	if !errors.Is(err, ErrRequesterMetadata) || !strings.Contains(err.Error(), "encodes to 4099 bytes") {
 		t.Fatalf("U+2028 must count six bytes: %v", err)
