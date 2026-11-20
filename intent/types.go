@@ -1,5 +1,10 @@
 package intent
 
+import (
+	"errors"
+	"strconv"
+)
+
 // IntentGoalType identifies the category of an intent's desired outcome.
 type IntentGoalType string
 
@@ -433,6 +438,42 @@ type IntentGoal struct {
 	Via          string                 `json:"via,omitempty"`
 	CustomType   string                 `json:"customType,omitempty"`
 	CustomParams map[string]interface{} `json:"customParams,omitempty"`
+	// Priority is the priority the submitter declares for the intent: normal, high or urgent. Empty means normal. The node validates it at
+	// admission (IntentPriority.Validate), the compiled plan carries it, and the governed gas schedule's PriorityMultiplier prices it.
+	Priority IntentPriority `json:"priority,omitempty"`
+}
+
+// IntentPriority is a submitter-declared intent priority.
+type IntentPriority string
+
+const (
+	PriorityNormal IntentPriority = "normal"
+	PriorityHigh   IntentPriority = "high"
+	PriorityUrgent IntentPriority = "urgent"
+)
+
+// ValidIntentPriorities is the closed set of declarable priorities.
+var ValidIntentPriorities = map[IntentPriority]bool{
+	PriorityNormal: true,
+	PriorityHigh:   true,
+	PriorityUrgent: true,
+}
+
+// Effective answers the priority an intent is priced at: the declared one, or normal when none is declared.
+func (p IntentPriority) Effective() IntentPriority {
+	if p == "" {
+		return PriorityNormal
+	}
+	return p
+}
+
+// Validate refuses a declared priority outside ValidIntentPriorities. Empty (undeclared) is valid and means normal. The comparison is exact:
+// a priority is a vocabulary word, not free text, so "URGENT" or " urgent" is refused rather than read as urgent.
+func (p IntentPriority) Validate() error {
+	if p == "" || ValidIntentPriorities[p] {
+		return nil
+	}
+	return errors.New("intent: priority " + strconv.Quote(string(p)) + " is not one of normal, high, urgent")
 }
 
 // AssetAmount identifies a specific token and quantity.
