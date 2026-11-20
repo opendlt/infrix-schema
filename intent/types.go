@@ -1,7 +1,10 @@
 package intent
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -421,6 +424,10 @@ type Intent struct {
 	ExpiresAt       int64             `json:"expiresAt,omitempty"`
 	BlockHeight     uint64            `json:"blockHeight"`
 	Metadata        map[string]string `json:"metadata,omitempty"`
+	// RequesterMetadata is the REQUESTER's own annotation of the intent: string keys and JSON values, bounded by ValidateRequesterMetadata.
+	// It is distinct from Metadata, which is the NODE's attribution (the standing authorization a node-originated submission ran under) and
+	// which no request may set. A submission states it as its "metadata" member; the node records it with the intent and governs nothing by it.
+	RequesterMetadata map[string]any `json:"requesterMetadata,omitempty"`
 
 	// Gap 6A: explicit forward link to the plan produced from this intent.
 	// Populated by the intent pipeline after plan compilation completes.
@@ -474,6 +481,83 @@ func (p IntentPriority) Validate() error {
 		return nil
 	}
 	return errors.New("intent: priority " + strconv.Quote(string(p)) + " is not one of normal, high, urgent")
+}
+
+// MaxRequesterMetadataBytes bounds a requester's metadata: its compact JSON encoding may be at most this many bytes.
+const MaxRequesterMetadataBytes = 4096
+
+// MaxRequesterMetadataKeyBytes bounds one key of a requester's metadata.
+const MaxRequesterMetadataKeyBytes = 128
+
+// ErrRequesterMetadata marks requester metadata that is refused: not a JSON object, an empty or over-long key, or over the size bound.
+var ErrRequesterMetadata = errors.New("intent: requester metadata refused")
+
+// ParseRequesterMetadata reads a request's "metadata" member as requester metadata. It must be one JSON object (a string, number, array,
+// boolean or null is refused by name); each key must be non-empty and at most MaxRequesterMetadataKeyBytes; the object's compact encoding must
+// be at most MaxRequesterMetadataBytes. Values are any JSON value. An absent member (empty raw) and an empty object are no metadata.
+func ParseRequesterMetadata(raw []byte) (map[string]any, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+	if trimmed[0] != '{' {
+		return nil, fmt.Errorf("%w: metadata must be a JSON object of string keys and JSON values, not %s", ErrRequesterMetadata, jsonKind(trimmed[0]))
+	}
+	dec := json.NewDecoder(bytes.NewReader(trimmed))
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		return nil, fmt.Errorf("%w: metadata is not a well-formed JSON object: %v", ErrRequesterMetadata, err)
+	}
+	if dec.More() {
+		return nil, fmt.Errorf("%w: metadata carries data after its JSON object", ErrRequesterMetadata)
+	}
+	if err := ValidateRequesterMetadata(m); err != nil {
+		return nil, err
+	}
+	if len(m) == 0 {
+		return nil, nil
+	}
+	return m, nil
+}
+
+// ValidateRequesterMetadata refuses requester metadata with an empty or over-long key, or whose compact JSON encoding is over
+// MaxRequesterMetadataBytes. nil and empty are valid (no metadata).
+func ValidateRequesterMetadata(m map[string]any) error {
+	for k := range m {
+		if k == "" {
+			return fmt.Errorf("%w: a metadata key is empty", ErrRequesterMetadata)
+		}
+		if len(k) > MaxRequesterMetadataKeyBytes {
+			return fmt.Errorf("%w: a metadata key is %d bytes, over the %d-byte bound", ErrRequesterMetadata, len(k), MaxRequesterMetadataKeyBytes)
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	enc, err := json.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("%w: metadata does not encode as JSON: %v", ErrRequesterMetadata, err)
+	}
+	if len(enc) > MaxRequesterMetadataBytes+1 {
+		return fmt.Errorf("%w: metadata encodes to %d bytes, over the %d-byte bound", ErrRequesterMetadata, len(enc), MaxRequesterMetadataBytes)
+	}
+	return nil
+}
+
+// jsonKind names the JSON value that opens with first.
+func jsonKind(first byte) string {
+	switch first {
+	case '"':
+		return "a string"
+	case '[':
+		return "an array"
+	case 't', 'f':
+		return "a boolean"
+	case 'n':
+		return "null"
+	default:
+		return "a number"
+	}
 }
 
 // AssetAmount identifies a specific token and quantity.
