@@ -7,7 +7,6 @@
 package evidence
 
 import (
-	"crypto/sha256"
 	"fmt"
 )
 
@@ -77,62 +76,19 @@ func VerifyMerkleInclusionProof(proof *MerkleInclusionProof) bool {
 	if proof == nil {
 		return false
 	}
-	computed := proof.Link.ContentHash
-	idx := proof.LinkIndex
+	computed := MerkleLeafHash(proof.Link.ContentHash)
 	for _, sibling := range proof.Proof {
-		h := sha256.New()
-		if idx%2 == 0 {
-			h.Write(computed[:])
-			h.Write(sibling[:])
-		} else {
-			h.Write(sibling[:])
-			h.Write(computed[:])
-		}
-		copy(computed[:], h.Sum(nil))
-		idx /= 2
+		computed = MerkleHashPair(computed, sibling)
 	}
 	return computed == proof.ChainHash
 }
 
-// buildMerkleProof constructs the sibling hashes needed to prove
-// that the leaf at `index` is included in the tree built from
-// `hashes`. The tree is padded to the next power of 2 by repeating
-// the last leaf -- the same padding convention used by
-// ComputeEvidenceMerkleRoot so the two functions always agree on
-// the root.
+// buildMerkleProof constructs the sibling hashes needed to prove that the leaf at `index` is included in the tree built from `hashes`:
+// the path EvidenceMerkleRootWithProofs gives that leaf, so the two always agree on the root.
 func buildMerkleProof(hashes [][32]byte, index int) [][32]byte {
-	if len(hashes) == 0 {
+	if len(hashes) == 0 || index < 0 || index >= len(hashes) {
 		return nil
 	}
-	n := len(hashes)
-	size := 1
-	for size < n {
-		size *= 2
-	}
-	padded := make([][32]byte, size)
-	copy(padded, hashes)
-	for i := n; i < size; i++ {
-		padded[i] = hashes[n-1]
-	}
-
-	var proof [][32]byte
-	idx := index
-	for size > 1 {
-		if idx%2 == 0 {
-			proof = append(proof, padded[idx+1])
-		} else {
-			proof = append(proof, padded[idx-1])
-		}
-		newPadded := make([][32]byte, size/2)
-		for i := 0; i < size/2; i++ {
-			h := sha256.New()
-			h.Write(padded[i*2][:])
-			h.Write(padded[i*2+1][:])
-			copy(newPadded[i][:], h.Sum(nil))
-		}
-		padded = newPadded
-		size /= 2
-		idx /= 2
-	}
-	return proof
+	_, proofs := EvidenceMerkleRootWithProofs(hashes)
+	return proofs[index]
 }

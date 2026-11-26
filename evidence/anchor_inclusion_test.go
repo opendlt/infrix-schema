@@ -8,6 +8,7 @@ package evidence
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 )
@@ -21,7 +22,7 @@ func inclusionLeaves(n int) [][32]byte {
 }
 
 // Every leaf of every batch size proves into the root ComputeEvidenceMerkleRoot gives the anchorer, including the one-leaf batch
-// a bundle anchored alone forms (its root is its own hash and its path is empty).
+// a bundle anchored alone forms (its root is its TAGGED hash and its path is empty: the one batch tree, brief 28bk row 2).
 func TestAnchorInclusionProvesEveryLeafOfEveryBatchSize(t *testing.T) {
 	for n := 1; n <= 9; n++ {
 		leaves := inclusionLeaves(n)
@@ -50,8 +51,37 @@ func TestAnchorInclusionProvesEveryLeafOfEveryBatchSize(t *testing.T) {
 	}
 	one := inclusionLeaves(1)
 	p, _ := GenerateAnchorInclusion(one, 0)
-	if p.BatchRoot != one[0] || len(p.Path) != 0 || p.LeafCount != 1 {
-		t.Fatalf("a one-leaf batch is not root=leaf with an empty path: %+v", p)
+	if p.BatchRoot != MerkleLeafHash(one[0]) || p.BatchRoot == one[0] || len(p.Path) != 0 || p.LeafCount != 1 {
+		t.Fatalf("a one-leaf batch is not root=tagged leaf with an empty path: %+v", p)
+	}
+}
+
+// WHAT THE HASH BINDS (brief 28bk row 2, main's condition): sorted pairs bind membership at the path's depth, not the position. An
+// inclusion whose LeafIndex names another real leaf of the batch, with the leaf's valid path, is judged by what the path proves: it
+// verifies as membership (no false refusal), and the doc says the index is never verified by the hash (no false position claim). An
+// internal node presented as a leaf (PASS-33) and a raw one-leaf root (the untagged rule) are refused.
+func TestAnchorInclusionBindsMembershipNotPosition(t *testing.T) {
+	leaves := inclusionLeaves(6)
+	p, err := GenerateAnchorInclusion(leaves, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, idx := range []uint64{0, 3, 5} {
+		moved := *p
+		moved.LeafIndex = idx
+		if err := VerifyAnchorInclusion(leaves[1], &moved); err != nil {
+			t.Fatalf("leaf 1's valid path with LeafIndex %d was refused (%v): the hash binds membership, so it must verify as membership", idx, err)
+		}
+	}
+	// PASS-33 in the one tree: the parent of leaves 0 and 1 presented as a leaf at depth 2 of the same root does not verify
+	parent := MerkleHashPair(MerkleLeafHash(leaves[0]), MerkleLeafHash(leaves[1]))
+	q := &AnchorInclusionProof{BatchRoot: p.BatchRoot, LeafIndex: 0, LeafCount: 4, Path: p.Path[1:]}
+	if err := VerifyAnchorInclusion(parent, q); err == nil {
+		t.Fatal("an internal node verified as a leaf: the leaf/internal domain separation is broken")
+	}
+	// a one-leaf root that is the raw value (the untagged rule) is refused
+	if err := VerifyAnchorInclusion(leaves[0], &AnchorInclusionProof{BatchRoot: leaves[0], LeafCount: 1, Path: [][32]byte{}}); err == nil {
+		t.Fatal("a raw one-leaf root verified: the leaf is not domain-tagged")
 	}
 }
 
@@ -143,5 +173,28 @@ func TestApprovalSignatureFieldsKeepOldBundleHashesAndBindNewOnes(t *testing.T) 
 	h3, _ := signed.ComputeBundleHash()
 	if h3 == h2 {
 		t.Fatal("swapping an approval signature does not change BundleHash")
+	}
+}
+
+// THE ONE TREE IS THE TREE THE NODE HAS ALWAYS WRITTEN (brief 28bk row 2). These roots were computed by core pkg/merkle.RootWithProofs
+// before it delegated here, over the same leaves; every anchor already on Accumulate was written with that rule, so the moved tree must
+// reproduce it bit for bit, or historical anchors would stop verifying.
+func TestTheOneTreeReproducesTheRootsTheNodeWrote(t *testing.T) {
+	want := map[int]string{
+		1: "7bdfeb0592fa1353acd907e7d070aa5f640dd1f2ac24a9ae67a1cafeda70edf0",
+		2: "254af1bbe25ce4f9191f17bb1f1c7d040734d0e6acf25b6c554c3f86822d5b02",
+		3: "81aece92fd045e334cc368f98e28b8dad3adbcbe976473a6653ced4ec063c065",
+		5: "ace2606429012534189223ee0f158d818419fdb9cf356bb4596b56b1c02070aa",
+		8: "5bd574edd8894c361a12d7dbb733483fd6df353f2f506093fb323f4c8e36db8e",
+	}
+	for n, hexRoot := range want {
+		root := ComputeEvidenceMerkleRoot(inclusionLeaves(n))
+		if got := hex.EncodeToString(root[:]); got != hexRoot {
+			t.Fatalf("n=%d: root %s, the node wrote %s", n, got, hexRoot)
+		}
+	}
+	_, proofs := EvidenceMerkleRootWithProofs(inclusionLeaves(5))
+	if got := hex.EncodeToString(proofs[4][2][:]); got != "fb3024edfd3c88773535d617162b89cdae50459f5e808b31119c81c4caec7903" {
+		t.Fatalf("leaf 4 of 5: top sibling %s differs from the node's path", got)
 	}
 }
