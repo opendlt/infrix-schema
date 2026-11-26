@@ -317,6 +317,11 @@ type EvidenceBundle struct {
 	TrustAssumptions []TrustAssumption  `json:"trustAssumptions,omitempty"`
 	ExternalProofs   []ExternalProofRef `json:"externalProofs,omitempty"`
 
+	// PolicyEvaluations carries, for every policy the plan was decided under, the content-addressed policy and the subject it was decided
+	// over, so a verifier re-runs the decision itself (policyeval, the node's own evaluator body) instead of reading PolicyDecisions. G0 is
+	// credited only from these re-evaluations (native proof plan phase 6, brief 28bi). Covered by BundleHash when present.
+	PolicyEvaluations []PolicyEvaluation `json:"policyEvaluations,omitempty"`
+
 	// Deprecated: The following fields duplicate data that lives
 	// authoritatively in OutcomeRecord. Use OutcomeRecordID to
 	// reference the canonical source. These fields are retained for
@@ -459,6 +464,16 @@ func (b *EvidenceBundle) ComputeBundleHash() ([32]byte, error) {
 		if err != nil {
 			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal StepOutcomes for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
 		}
+		h.Write(data)
+	}
+
+	// Policy evaluations (brief 28bi): tagged, so their bytes can never be read as another section's.
+	if len(b.PolicyEvaluations) > 0 {
+		data, err := json.Marshal(b.PolicyEvaluations)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal PolicyEvaluations for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
+		h.Write([]byte("policyEvaluations"))
 		h.Write(data)
 	}
 
