@@ -290,6 +290,13 @@ type EvidenceBundle struct {
 	StorageProofs []StorageInclusionProof `json:"storageProofs,omitempty"`
 	AccountProofs []AccountInclusionProof `json:"accountProofs,omitempty"`
 
+	// L0Proof, KeyPageProofs and GovernanceExecution are the Accumulate proofs the node's capture service embeds after Directory certification (the native
+	// proof plan, phases 5 and 7; l0proof_refs.go). Like AnchorInclusion they are captured after the bundle is sealed, so they are not part of BundleHash;
+	// they travel in BundleData, which ExportHash covers. A verifier checks each against ITS OWN pinned network incarnation; nothing here selects a pin.
+	L0Proof             json.RawMessage   `json:"l0Proof,omitempty"`
+	KeyPageProofs       []json.RawMessage `json:"keyPageProofs,omitempty"`
+	GovernanceExecution json.RawMessage   `json:"governanceExecution,omitempty"`
+
 	// AnchorCandidateDigest is the SHA-256 the bundle commits to
 	// anchor at finalize time. Required when Level == EvidenceLevelAnchored
 	// (spec §9.2.4: "anchor candidate contribution + durable digest
