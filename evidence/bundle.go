@@ -304,6 +304,11 @@ type EvidenceBundle struct {
 	KeyPageProofs       []json.RawMessage `json:"keyPageProofs,omitempty"`
 	GovernanceExecution json.RawMessage   `json:"governanceExecution,omitempty"`
 
+	// PlanContentHash is the hash of the plan's content before it was bound to its policy evaluations (brief 28bu row 2): the plan hash
+	// approvers sign is BindPlanHash(PlanContentHash, PolicyEvaluations), so a verifier recomputes it and holds every re-evaluated subject to
+	// the hash the approvals signed. Zero for a plan governed under no evaluation (its plan hash is its content hash).
+	PlanContentHash [32]byte `json:"planContentHash,omitempty"`
+
 	// AnchorCandidateDigest is the SHA-256 the bundle commits to
 	// anchor at finalize time. Required when Level == EvidenceLevelAnchored
 	// (spec §9.2.4: "anchor candidate contribution + durable digest
