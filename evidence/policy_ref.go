@@ -6,13 +6,14 @@
 
 package evidence
 
-import "encoding/json"
-
 // PolicyRef is a content-addressed policy: Content is the canonical policy document (infrix-schema policyeval.EncodeDocument) and Hash is
 // its SHA-256 (policyeval.ContentHash). A verifier refuses a PolicyRef whose content does not hash to Hash (native proof plan BD-06).
+//
+// Content is bytes (base64 in JSON), never embedded JSON: the bundle's canonical encoding re-encodes embedded JSON (it sorts object keys),
+// which would change the bytes the hash addresses.
 type PolicyRef struct {
-	Hash    [32]byte        `json:"hash"`
-	Content json.RawMessage `json:"content"`
+	Hash    [32]byte `json:"hash"`
+	Content []byte   `json:"content"`
 }
 
 // PolicySubject is what a goal policy was decided over at intent admission, the fields of policyeval.Subject (this package stays
