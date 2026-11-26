@@ -254,3 +254,25 @@ func TestParserRefusesWhatItUsedToReadPastOrGuess(t *testing.T) {
 		}
 	}
 }
+
+type nilContext struct{}
+
+func (nilContext) ResolveOperand(OperandSource, []string) (any, error) { return nil, nil }
+func (nilContext) ResolveAggregation(AggregationFunc, OperandSource, []string, uint64, AggregationWindowUnit) (float64, error) {
+	return 0, nil
+}
+
+// A context that answers an operand with no value has not resolved it: the condition is unevaluable instead of comparing "<nil>". Before,
+// `actor::identity() != ""` held for a nil actor. Bite: an empty actor string evaluates (and does not match).
+func TestVMRefusesANilOperand(t *testing.T) {
+	cc, err := CompileExpression(`actor::identity() != ""`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := EvaluateCompiled(cc, nilContext{}); err == nil || !strings.Contains(err.Error(), "resolved to no value") {
+		t.Fatalf("a nil operand evaluated: %v %v", ok, err)
+	}
+	if ok, err := EvaluateCompiled(cc, &SubjectOnlyContext{Subject: Subject{Actor: ""}}); err != nil || ok {
+		t.Fatalf("bite: an empty actor: %v %v", ok, err)
+	}
+}

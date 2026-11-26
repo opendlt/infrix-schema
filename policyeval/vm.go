@@ -75,6 +75,12 @@ func (vm *VM) Evaluate(cc *CompiledCondition, ctx EvalContext) (bool, uint64, er
 			if err != nil {
 				return false, vm.gas, err
 			}
+			// NEVER A SILENT NIL (brief 28bi). A context that answers (nil, nil) has not resolved the operand: a nil compared as the
+			// string "<nil>", so `actor::identity() != ""` HELD for an actor nobody named and an allow rule fired on no identity. The
+			// operand is unevaluable, and the decision fails closed.
+			if val == nil {
+				return false, vm.gas, fmt.Errorf("operand %s resolved to no value", OperandSourceName(desc.Source))
+			}
 			vm.push(val)
 			vm.gas += 100
 
