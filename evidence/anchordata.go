@@ -6,7 +6,10 @@
 
 package evidence
 
-import "crypto/sha256"
+import (
+	"crypto/sha256"
+	"fmt"
+)
 
 // EvidenceAnchorData is the per-bundle record written to the L0
 // evidence data account. It intentionally contains only hashes and
@@ -86,4 +89,83 @@ func ComputeEvidenceMerkleRoot(hashes [][32]byte) [32]byte {
 	}
 
 	return padded[0]
+}
+
+// AnchorInclusionProof proves that one bundle hash is a leaf of the batch the node anchored (brief 28bd row 2, L2992): the leaf at
+// LeafIndex of a LeafCount-leaf tree built by ComputeEvidenceMerkleRoot, with Path the sibling hashes from the leaf up. A bundle
+// anchored alone is a one-leaf batch: BatchRoot is its own bundle hash, LeafCount is 1 and Path is empty.
+//
+// It is what a verifier credits proof level L3 (batch inclusion) from, recomputed over the bundle hash it derives itself; the
+// bundle's anchorStatus field, which the node sets, is never read for it.
+type AnchorInclusionProof struct {
+	BatchRoot [32]byte   `json:"batchRoot"`
+	LeafIndex uint64     `json:"leafIndex"`
+	LeafCount uint64     `json:"leafCount"`
+	Path      [][32]byte `json:"path"`
+}
+
+// GenerateAnchorInclusion returns the inclusion proof of hashes[index] in the batch root ComputeEvidenceMerkleRoot(hashes).
+func GenerateAnchorInclusion(hashes [][32]byte, index int) (*AnchorInclusionProof, error) {
+	if len(hashes) == 0 {
+		return nil, fmt.Errorf("evidence: an anchor inclusion needs at least one leaf")
+	}
+	if index < 0 || index >= len(hashes) {
+		return nil, fmt.Errorf("evidence: anchor inclusion index %d is outside the %d-leaf batch", index, len(hashes))
+	}
+	path := buildMerkleProof(hashes, index)
+	if path == nil {
+		path = [][32]byte{}
+	}
+	return &AnchorInclusionProof{
+		BatchRoot: ComputeEvidenceMerkleRoot(hashes),
+		LeafIndex: uint64(index),
+		LeafCount: uint64(len(hashes)),
+		Path:      path,
+	}, nil
+}
+
+// anchorInclusionDepth is the number of siblings a LeafCount-leaf batch's path carries: the depth of the tree padded to a power of 2.
+func anchorInclusionDepth(leafCount uint64) int {
+	depth := 0
+	for size := uint64(1); size < leafCount; size *= 2 {
+		depth++
+	}
+	return depth
+}
+
+// VerifyAnchorInclusion recomputes the batch root from leaf along p.Path and reports whether it equals p.BatchRoot. The index must
+// name a real leaf (not a padding copy) and the path must have exactly the batch's depth, so a proof cannot be stretched or cut to
+// land on another node of the tree.
+func VerifyAnchorInclusion(leaf [32]byte, p *AnchorInclusionProof) error {
+	if p == nil {
+		return fmt.Errorf("evidence: no anchor inclusion proof")
+	}
+	if p.LeafCount == 0 {
+		return fmt.Errorf("evidence: anchor inclusion names an empty batch")
+	}
+	if p.LeafIndex >= p.LeafCount {
+		return fmt.Errorf("evidence: anchor inclusion leaf %d is outside the %d-leaf batch", p.LeafIndex, p.LeafCount)
+	}
+	if want := anchorInclusionDepth(p.LeafCount); len(p.Path) != want {
+		return fmt.Errorf("evidence: anchor inclusion path has %d sibling(s), a %d-leaf batch has depth %d", len(p.Path), p.LeafCount, want)
+	}
+	computed := leaf
+	idx := p.LeafIndex
+	for _, sibling := range p.Path {
+		// privacy-fence-exempt: Merkle tree inner-node digest, not a cross-stream identity hash — the input bytes are already digests
+		h := sha256.New()
+		if idx%2 == 0 {
+			h.Write(computed[:])
+			h.Write(sibling[:])
+		} else {
+			h.Write(sibling[:])
+			h.Write(computed[:])
+		}
+		copy(computed[:], h.Sum(nil))
+		idx /= 2
+	}
+	if computed != p.BatchRoot {
+		return fmt.Errorf("evidence: the bundle hash does not reach the batch root the anchor inclusion names")
+	}
+	return nil
 }

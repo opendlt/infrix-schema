@@ -63,13 +63,42 @@ type DecisionProofRef struct {
 
 // ApprovalEvidenceRef is a JSON-compatible mirror of
 // pkg/workflow.ApprovalRef. See DecisionProofRef for the rationale.
+//
+// The signature fields (brief 28bd row 1, L2992) carry the approval exactly as the node's approval store verified it, so a verifier
+// can check it itself instead of crediting an identity string: SignedPreimage is the canonical approval preimage the signer signed
+// (domain "infrix/approval-signature/v2", the encoding pkg/workflow.TypedApproval.SigningPreimage writes), Signature and PublicKey
+// are the signature and the key that made it, SigType names the scheme (one of the ApprovalSigType constants), SignerPage is the
+// Accumulate key page the approval names, and SignatureMetadataHash is the Accumulate signature-metadata hash an accumulate-* type
+// signs beside the approval hash. A verifier reads the plan hash, stage, identity, role, key page and key from the PREIMAGE and
+// requires them to equal these fields; nothing here is credited because the node wrote it.
+//
+// Every signature field is omitted when empty, so a bundle exported before they existed (or an approval the store accepted
+// unsigned, test/devnet only) keeps its BundleHash; such an approval proves nothing and caps governance at G0.
 type ApprovalEvidenceRef struct {
 	StageID  string    `json:"stageId"`
 	Identity string    `json:"identity"`
 	Role     string    `json:"role"`
 	PlanHash [32]byte  `json:"planHash"`
 	SignedAt time.Time `json:"signedAt"`
+
+	Signature             []byte `json:"signature,omitempty"`
+	PublicKey             []byte `json:"publicKey,omitempty"`
+	SigType               string `json:"sigType,omitempty"`
+	SignerPage            string `json:"signerPage,omitempty"`
+	SignedPreimage        []byte `json:"signedPreimage,omitempty"`
+	SignatureMetadataHash []byte `json:"signatureMetadataHash,omitempty"`
 }
+
+// The approval signature schemes an ApprovalEvidenceRef can declare.
+//
+//   - ApprovalSigTypeInfrixEd25519: the original form, a bare Ed25519 signature over SignedPreimage.
+//   - ApprovalSigTypeAccumulatePrefix + an Accumulate user-signature type name (ed25519, btc, eth, legacyED25519, rcd1, btcLegacy,
+//     rsaSha256, ecdsaSha256): the network's own signature, made over sha256(SignatureMetadataHash || sha256(SignedPreimage)) the way
+//     Accumulate's executor verifies a user signature.
+const (
+	ApprovalSigTypeInfrixEd25519    = "infrix-ed25519"
+	ApprovalSigTypeAccumulatePrefix = "accumulate-"
+)
 
 // DriftAnalysisRef is a JSON-compatible mirror of
 // pkg/workflow.DriftAnalysis held inside an EvidenceBundle.
@@ -248,6 +277,12 @@ type EvidenceBundle struct {
 	AnchorTxHash  string       `json:"anchorTxHash,omitempty"`
 	AnchorBlock   uint64       `json:"anchorBlockHeight,omitempty"`
 	AnchorDataIdx uint64       `json:"anchorDataIndex,omitempty"`
+
+	// AnchorInclusion proves this bundle's hash is a leaf of the batch root the anchor transaction wrote (a one-leaf batch for a
+	// bundle anchored alone). Set by the anchorer with the other anchor metadata; like them it is not part of BundleHash, and like
+	// them it travels in a portable package's BundleData, which ExportHash covers. Proof level L3 is credited from it, never from
+	// Anchor (brief 28bd row 2).
+	AnchorInclusion *AnchorInclusionProof `json:"anchorInclusion,omitempty"`
 
 	// AnchorCandidateDigest is the SHA-256 the bundle commits to
 	// anchor at finalize time. Required when Level == EvidenceLevelAnchored
