@@ -165,7 +165,8 @@ func GenerateAnchorInclusion(hashes [][32]byte, index int) (*AnchorInclusionProo
 	if index < 0 || index >= len(hashes) {
 		return nil, fmt.Errorf("evidence: anchor inclusion index %d is outside the %d-leaf batch", index, len(hashes))
 	}
-	path := buildMerkleProof(hashes, index)
+	_, paths := EvidenceMerkleRootWithProofs(hashes)
+	path := paths[index]
 	if path == nil {
 		path = [][32]byte{}
 	}
