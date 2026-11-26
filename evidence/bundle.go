@@ -231,6 +231,13 @@ type ExternalProofRef struct {
 	TxHash      string   `json:"txHash,omitempty"`
 	BlockHeight uint64   `json:"blockHeight,omitempty"`
 	Verified    bool     `json:"verified"`
+	// Account and L0Proof are the EMBEDDED confirmation of the proof (brief 28bk row 3, main's ruling (a)): the Accumulate data account the
+	// WriteData holding ProofHash as one whole data item was written to, and the infrix-verify l0proof chain of that transaction to a certified
+	// Directory header. A verifier checks the chain against ITS OWN pin (a compiled network pin or one the relying party passes), never the
+	// bundle's, and credits the confirmation from it offline (source embedded-proof); a live re-read stays the other route. Raw bytes, so the
+	// bundle's canonical encoding never re-encodes the chain the hash covers; both omitted when empty, so every earlier bundle keeps its hash.
+	Account string `json:"account,omitempty"`
+	L0Proof []byte `json:"l0Proof,omitempty"`
 }
 
 // TrustAssumption records a trust profile that was relied upon during
