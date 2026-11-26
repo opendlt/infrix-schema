@@ -284,6 +284,12 @@ type EvidenceBundle struct {
 	// Anchor (brief 28bd row 2).
 	AnchorInclusion *AnchorInclusionProof `json:"anchorInclusion,omitempty"`
 
+	// StorageProofs and AccountProofs are the state proofs of the keys the bundle claims (state_inclusion.go): each key in its contract
+	// root (L1) and each contract root in StateRoot (L2). They are proofs ABOUT StateRoot, which BundleHash covers, so they are not hashed
+	// into BundleHash; they travel in BundleData, which ExportHash covers.
+	StorageProofs []StorageInclusionProof `json:"storageProofs,omitempty"`
+	AccountProofs []AccountInclusionProof `json:"accountProofs,omitempty"`
+
 	// AnchorCandidateDigest is the SHA-256 the bundle commits to
 	// anchor at finalize time. Required when Level == EvidenceLevelAnchored
 	// (spec §9.2.4: "anchor candidate contribution + durable digest
