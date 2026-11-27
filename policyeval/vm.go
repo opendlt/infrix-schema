@@ -9,6 +9,7 @@ package policyeval
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -108,19 +109,31 @@ func (vm *VM) Evaluate(cc *CompiledCondition, ctx EvalContext) (bool, uint64, er
 			vm.push(!compareEq(l, r))
 			vm.gas += 5
 		case OpCmpGtBC:
-			r, l := vm.popFloat(), vm.popFloat()
+			l, r, err := vm.popOrdered(">")
+			if err != nil {
+				return false, vm.gas, err
+			}
 			vm.push(l > r)
 			vm.gas += 5
 		case OpCmpLtBC:
-			r, l := vm.popFloat(), vm.popFloat()
+			l, r, err := vm.popOrdered("<")
+			if err != nil {
+				return false, vm.gas, err
+			}
 			vm.push(l < r)
 			vm.gas += 5
 		case OpCmpGteBC:
-			r, l := vm.popFloat(), vm.popFloat()
+			l, r, err := vm.popOrdered(">=")
+			if err != nil {
+				return false, vm.gas, err
+			}
 			vm.push(l >= r)
 			vm.gas += 5
 		case OpCmpLteBC:
-			r, l := vm.popFloat(), vm.popFloat()
+			l, r, err := vm.popOrdered("<=")
+			if err != nil {
+				return false, vm.gas, err
+			}
 			vm.push(l <= r)
 			vm.gas += 5
 
@@ -192,8 +205,101 @@ func (vm *VM) pop() any {
 	return v
 }
 
-func (vm *VM) popFloat() float64 {
-	return toFloat(vm.pop())
+// popOrdered pops the right then the left operand of an ordering comparison and returns them as numbers (left, right). AN ORDERING
+// NEVER COMPARES A VALUE IT CANNOT ORDER: the old popFloat answered 0 for every string and for every numeric kind toFloat did not list,
+// so `scope::amount() > 1000` over the string "5000" was 0 > 1000, false, and the deny rule it guarded did not fire (an allow rule shaped
+// `x < limit` fired instead). A value orders only as a number (every numeric kind, a string that parses as a finite number, as compareEq
+// already reads one, or a boolean as the EvalContext contract's 1 or 0); anything else makes the rule unevaluable, and the decision fails
+// closed.
+func (vm *VM) popOrdered(op string) (float64, float64, error) {
+	rv, lv := vm.pop(), vm.pop()
+	r, rerr := orderedNumber(rv)
+	l, lerr := orderedNumber(lv)
+	if lerr != nil || rerr != nil {
+		return 0, 0, fmt.Errorf("ordering %v %s %v is not evaluable: both sides must be numbers (left: %s; right: %s)", lv, op, rv, describeOrdered(lv, lerr), describeOrdered(rv, rerr))
+	}
+	return l, r, nil
+}
+
+// orderedNumber is a value as an orderable number: every Go numeric kind, a string that parses as a finite number, or a boolean (1 or 0).
+func orderedNumber(v any) (float64, error) {
+	if s, ok := v.(string); ok {
+		f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+		if err != nil {
+			return 0, fmt.Errorf("the string %q is not a number", s)
+		}
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return 0, fmt.Errorf("the string %q is not a finite number", s)
+		}
+		return f, nil
+	}
+	// A boolean operand is a truth value with the EvalContext contract's numeric meaning (1 for true, 0 for false), as compareEq reads it.
+	if b, ok := v.(bool); ok {
+		if b {
+			return 1, nil
+		}
+		return 0, nil
+	}
+	f, ok := numericValue(v)
+	if !ok {
+		return 0, fmt.Errorf("a %T is not a number", v)
+	}
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, fmt.Errorf("%v is not a finite number", f)
+	}
+	return f, nil
+}
+
+func describeOrdered(v any, err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("the number %v", v)
+}
+
+// numericValue is v as a float64 when v is of a Go numeric kind (named numeric types included).
+func numericValue(v any) (float64, bool) {
+	switch val := v.(type) {
+	case float64:
+		return val, true
+	case float32:
+		return float64(val), true
+	case int:
+		return float64(val), true
+	case int8:
+		return float64(val), true
+	case int16:
+		return float64(val), true
+	case int32:
+		return float64(val), true
+	case int64:
+		return float64(val), true
+	case uint:
+		return float64(val), true
+	case uint8:
+		return float64(val), true
+	case uint16:
+		return float64(val), true
+	case uint32:
+		return float64(val), true
+	case uint64:
+		return float64(val), true
+	case uintptr:
+		return float64(val), true
+	}
+	if v == nil {
+		return 0, false
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float64(rv.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return float64(rv.Uint()), true
+	case reflect.Float32, reflect.Float64:
+		return rv.Float(), true
+	}
+	return 0, false
 }
 
 func (vm *VM) popBool() bool {
@@ -225,15 +331,10 @@ func ToFloatPublic(v any) float64 { return toFloat(v) }
 
 // toFloat converts an interface value to float64 for numeric comparisons.
 func toFloat(v any) float64 {
+	if f, ok := numericValue(v); ok {
+		return f
+	}
 	switch val := v.(type) {
-	case float64:
-		return val
-	case int64:
-		return float64(val)
-	case int:
-		return float64(val)
-	case uint64:
-		return float64(val)
 	case bool:
 		if val {
 			return 1
