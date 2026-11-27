@@ -21,7 +21,8 @@ func TruthOperand(b bool) float64 {
 	return 0
 }
 
-// ProvenRolesContext evaluates over a Subject and the subject actor's global roles AS PROVEN against a bundle's state root (infrix-core L3112):
+// ProvenRolesContext evaluates over a Subject, the subject actor's global roles AS PROVEN against a bundle's state root (infrix-core L3112) and
+// the key pages the bundle proves under the pin (actor::has_key, L3196):
 // actor::role(r) answers TruthOperand(r is one of ActorRoles) only when ActorProven is set (the verifier set it after a RoleRecordProof for
 // the subject's actor verified); otherwise it refuses, exactly as SubjectOnlyContext does. Every other operand is the Subject's, and every
 // aggregation refuses (history is not proven).
@@ -30,6 +31,9 @@ type ProvenRolesContext struct {
 	// ActorRoles is the subject actor's global role set in record form (lower case); empty when the proof shows the actor holds none.
 	ActorRoles  []string
 	ActorProven bool
+	// ProvenPages are the key pages (URL, lower case) the bundle proves under the verifier's pin (its verified KeyPageProofs): actor::has_key
+	// answers through ResolveActorHasKey, true for a proven page and refused for any other (ErrAbsenceNotProvable, infrix-core L3196).
+	ProvenPages map[string]bool
 }
 
 // ResolveOperand implements EvalContext.
@@ -48,6 +52,9 @@ func (c *ProvenRolesContext) ResolveOperand(source OperandSource, args []string)
 			}
 		}
 		return TruthOperand(false), nil
+	}
+	if source == OpActorHasKey {
+		return ResolveActorHasKey(ProvenPageExists(c.ProvenPages), args)
 	}
 	v, handled, err := c.Subject.Resolve(source, args)
 	if !handled {

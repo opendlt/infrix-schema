@@ -38,3 +38,18 @@ func TestS28coActorRoleIsAnsweredOnlyFromProvenRoles(t *testing.T) {
 		t.Fatal("TruthOperand is not 1/0")
 	}
 }
+
+// ACTOR::HAS_KEY IS RE-DECIDED FROM THE PROVEN KEY PAGES THROUGH THE NODE'S OWN BODY (infrix-core L3196): a proven page answers 1; any other
+// account is refused (its absence is not provable), never answered 0.
+func TestS28ctActorHasKeyIsReDecidedFromTheProvenPages(t *testing.T) {
+	c := &ProvenRolesContext{Subject: Subject{Actor: "acc://alice.acme"}, ProvenPages: map[string]bool{"acc://alice.acme/book/1": true}}
+	if v, err := c.ResolveOperand(OpActorHasKey, []string{"acc://Alice.acme/book/1"}); err != nil || v != TruthOperand(true) {
+		t.Fatalf("actor::has_key of a proven page = %v, %v; want 1", v, err)
+	}
+	if v, err := c.ResolveOperand(OpActorHasKey, []string{"acc://alice.acme/book/2"}); err == nil {
+		t.Fatalf("actor::has_key of an unproven page answered %v", v)
+	}
+	if _, err := (&ProvenRolesContext{}).ResolveOperand(OpActorHasKey, nil); err == nil {
+		t.Fatal("actor::has_key with no account answered")
+	}
+}
