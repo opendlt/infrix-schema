@@ -358,15 +358,23 @@ type EvidenceBundle struct {
 	BundleHash    [32]byte `json:"bundleHash"`
 	ChainVerified bool     `json:"chainVerified"`
 
+	// BundleHashRule names the rule BundleHash was computed under (brief 28cd, L3124). Finalize stamps BundleHashRuleSealedDigests on every
+	// bundle it seals; absent (BundleHashRuleLegacy) is a bundle sealed before the rule existed, whose hash, already anchored on Accumulate,
+	// must keep recomputing. The rule is itself hashed under the current rule, so a sealed bundle relabelled legacy no longer recomputes to
+	// its anchored hash. A verifier reports a legacy bundle's outcome digest as NOT sealed (BundleHashCoversSealedDigests). Any other value
+	// is refused.
+	BundleHashRule int `json:"bundleHashRule,omitempty"`
+
 	// OutcomeDigest is the deterministic digest of the canonical
 	// OutcomeRecord referenced by OutcomeRecordID. It is set by upstream
 	// callers (the executor hook, the mediator) before Finalize so the
 	// portable evidence package can carry an outcome-bound proof
 	// independent of bundle internals. Zero when no outcome is bound
 	// (a subsystem-attributed bundle whose artifact is its outcome binds
-	// the artifact's digest). Covered by BundleHash (brief 28cd, L3124),
-	// so it can never be the bundle's own hash, and a digest swapped
-	// after sealing fails the recomputed BundleHash.
+	// the artifact's digest). Covered by BundleHash under the rule every
+	// bundle is sealed under (BundleHashRuleSealedDigests; brief 28cd,
+	// L3124), so it can never be the bundle's own hash, and a digest
+	// swapped after sealing fails the recomputed BundleHash.
 	OutcomeDigest [32]byte `json:"outcomeDigest"`
 
 	// SealedBlockHeight is the L0 block height observed at the moment
@@ -404,9 +412,10 @@ type EvidenceBundle struct {
 // evidence level, chain hash, state root, policy decisions, approval
 // evidence, trust assumptions, external proofs, drift analysis, step
 // outcomes (each with its per-category gas), policy evaluations, and
-// (brief 28cd, L3124) the outcome digest, the anchor candidate digest,
-// the plan content hash and the sealed block height, each under its own
-// tag whether or not it is zero. It deliberately excludes mutable fields (anchor
+// (brief 28cd, L3124; under BundleHashRuleSealedDigests, the rule every
+// bundle is sealed under) the rule number, the outcome digest, the anchor
+// candidate digest, the plan content hash and the sealed block height,
+// each under its own tag whether or not it is zero. It deliberately excludes mutable fields (anchor
 // status, bundle state, timestamps) so that re-computing the hash
 // after lifecycle transitions yields the same value.
 //
@@ -506,21 +515,56 @@ func (b *EvidenceBundle) ComputeBundleHash() ([32]byte, error) {
 	// anchor orchestrator anchors as the outcome; the anchor candidate digest (GAP-V4, spec §9.2.4) is what the bundle commits to anchor;
 	// the plan content hash is what the approvals' plan hash is re-derived from (BindPlanHash); the sealed block height places the
 	// bundle's trust snapshots in time. Each is written under its own tag and ALWAYS, zero included: a section written only when non-zero
-	// would let a value be added to a bundle sealed without one and keep its hash.
-	h.Write([]byte("outcomeDigest"))
-	h.Write(b.OutcomeDigest[:])
-	h.Write([]byte("anchorCandidateDigest"))
-	h.Write(b.AnchorCandidateDigest[:])
-	h.Write([]byte("planContentHash"))
-	h.Write(b.PlanContentHash[:])
-	var height [8]byte
-	binary.BigEndian.PutUint64(height[:], b.SealedBlockHeight)
-	h.Write([]byte("sealedBlockHeight"))
-	h.Write(height[:])
+	// would let a value be added to a bundle sealed without one and keep its hash. The rule's number is written first, so a sealed bundle
+	// relabelled legacy recomputes to another hash. A legacy bundle keeps the rule it was anchored under: its anchor candidate, written only
+	// when non-zero, and none of the others.
+	switch b.BundleHashRule {
+	case BundleHashRuleSealedDigests:
+		var rule [8]byte
+		binary.BigEndian.PutUint64(rule[:], uint64(b.BundleHashRule))
+		h.Write([]byte("bundleHashRule"))
+		h.Write(rule[:])
+		h.Write([]byte("outcomeDigest"))
+		h.Write(b.OutcomeDigest[:])
+		h.Write([]byte("anchorCandidateDigest"))
+		h.Write(b.AnchorCandidateDigest[:])
+		h.Write([]byte("planContentHash"))
+		h.Write(b.PlanContentHash[:])
+		var height [8]byte
+		binary.BigEndian.PutUint64(height[:], b.SealedBlockHeight)
+		h.Write([]byte("sealedBlockHeight"))
+		h.Write(height[:])
+	case BundleHashRuleLegacy:
+		var zero [32]byte
+		if b.AnchorCandidateDigest != zero {
+			h.Write(b.AnchorCandidateDigest[:])
+		}
+	default:
+		return [32]byte{}, fmt.Errorf("ComputeBundleHash: bundle intent=%s plan=%s names bundle hash rule %d, which no verifier defines", b.IntentID, b.PlanID, b.BundleHashRule)
+	}
 
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
 	return result, nil
+}
+
+// The bundle hash rules (EvidenceBundle.BundleHashRule; brief 28cd, L3124).
+//
+//   - BundleHashRuleLegacy: a bundle sealed before the rule was named. Its hash covers the anchor candidate digest when non-zero and
+//     NOT the outcome digest, the plan content hash, the sealed block height or a zero anchor candidate; it is kept so that a bundle
+//     already anchored on Accumulate still recomputes to its anchored hash, and a verifier reports what it leaves unsealed.
+//   - BundleHashRuleSealedDigests: the rule Finalize seals every bundle under; it covers the rule number, the outcome digest, the anchor
+//     candidate digest, the plan content hash and the sealed block height, each under its own tag, zero included.
+const (
+	BundleHashRuleLegacy        = 0
+	BundleHashRuleSealedDigests = 2
+	CurrentBundleHashRule       = BundleHashRuleSealedDigests
+)
+
+// BundleHashCoversSealedDigests reports whether b's BundleHash covers its outcome digest, anchor candidate digest, plan content hash and
+// sealed block height; false for a legacy bundle, whose outcome digest a verifier must not report as sealed.
+func (b *EvidenceBundle) BundleHashCoversSealedDigests() bool {
+	return b.BundleHashRule == BundleHashRuleSealedDigests
 }
 
 // SetAnchorCandidate stamps the anchor candidate digest the bundle
@@ -576,6 +620,11 @@ func (b *EvidenceBundle) Finalize() error {
 		}
 	}
 	b.Type = string(TypeEvidenceBundleObject)
+	// a bundle sealed here for the first time is sealed under the current rule; one already sealed keeps its rule, so Finalize stays
+	// idempotent and a legacy bundle keeps its anchored hash (brief 28cd, L3124)
+	if b.BundleHash == ([32]byte{}) && b.BundleHashRule == BundleHashRuleLegacy {
+		b.BundleHashRule = CurrentBundleHashRule
+	}
 	hash, hashErr := b.ComputeBundleHash()
 	if hashErr != nil {
 		return fmt.Errorf("Finalize: %w", hashErr)
