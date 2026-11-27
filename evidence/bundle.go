@@ -317,6 +317,10 @@ type EvidenceBundle struct {
 	// into BundleHash; they travel in BundleData, which ExportHash covers.
 	StorageProofs []StorageInclusionProof `json:"storageProofs,omitempty"`
 	AccountProofs []AccountInclusionProof `json:"accountProofs,omitempty"`
+	// RoleRegistryProof proves the global roles of every actor whose policy evaluation the bundle carries, against StateRoot
+	// (role_registry.go; infrix-core L3112), so a verifier re-runs a policy that reads actor::role. Like StorageProofs it is a proof ABOUT
+	// StateRoot, which BundleHash covers, so it is not hashed into BundleHash; it travels in BundleData, which ExportHash covers.
+	RoleRegistryProof *RoleRegistryProof `json:"roleRegistryProof,omitempty"`
 
 	// L0Proof, KeyPageProofs and GovernanceExecution are the Accumulate proofs the node's capture service embeds after Directory certification (the native
 	// proof plan, phases 5 and 7; l0proof_refs.go). Like AnchorInclusion they are captured after the bundle is sealed, so they are not part of BundleHash;
