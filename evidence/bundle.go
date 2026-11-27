@@ -328,6 +328,12 @@ type EvidenceBundle struct {
 	L0Proof             json.RawMessage   `json:"l0Proof,omitempty"`
 	KeyPageProofs       []json.RawMessage `json:"keyPageProofs,omitempty"`
 	GovernanceExecution json.RawMessage   `json:"governanceExecution,omitempty"`
+	// OperandPageProofs are infrix-verify govproof.KeyPageProof values for the key pages the bundle's policy evaluations read through
+	// actor::has_key (infrix-core L3196): each proves its page exists at a Directory-certified block under the pin, so the verifier re-decides
+	// actor::has_key through the node's own body (policyeval.ResolveActorHasKey over ProvenRolesContext.ProvenPages). They are apart from
+	// KeyPageProofs, which prove only the pages approvals name. An account's absence has no proof (Accumulate's receipts prove membership only),
+	// so a "false" answer carries none and stays unproven. Captured after the seal; not part of BundleHash; travels in BundleData.
+	OperandPageProofs []json.RawMessage `json:"operandPageProofs,omitempty"`
 
 	// UncapturedProofs names every embedded proof the node owed this bundle and could not capture (main's ruling 2026-11-26 on the governance
 	// capture window): an approval Accumulate executed whose page proof at the executing block was lost to a node crash on a network that serves
