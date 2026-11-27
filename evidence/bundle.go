@@ -8,6 +8,7 @@ package evidence
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -128,6 +129,13 @@ type StepOutcomeRef struct {
 	GhostGasPredicted uint64   `json:"ghostGasPredicted,omitempty"`
 	GhostGasDrift     float64  `json:"ghostGasDrift,omitempty"`
 	GhostStatusMatch  bool     `json:"ghostStatusMatch"`
+
+	// GasConsumed is what the step's work used when that differs from ActualGas (a contract call's ActualGas is the limit it reserved);
+	// GasByCategory is GasConsumed split by meter category (compute, storage, memory, host, crypto, ..., "uncategorized"), summing to it.
+	// Both mirror pkg/workflow.StepOutcome (brief 28bz, L3087), are omitted when the step recorded none, and are covered by BundleHash
+	// through the step-outcome section (brief 28cd, L3124).
+	GasConsumed   uint64            `json:"gasConsumed,omitempty"`
+	GasByCategory map[string]uint64 `json:"gasByCategory,omitempty"`
 }
 
 // EvidenceLevel controls the depth of evidence captured for a single
@@ -355,8 +363,10 @@ type EvidenceBundle struct {
 	// callers (the executor hook, the mediator) before Finalize so the
 	// portable evidence package can carry an outcome-bound proof
 	// independent of bundle internals. Zero when no outcome is bound
-	// (subsystem-attributed bundles that produce their own artifact may
-	// re-use BundleHash via SetOutcomeDigest at finalize time).
+	// (a subsystem-attributed bundle whose artifact is its outcome binds
+	// the artifact's digest). Covered by BundleHash (brief 28cd, L3124),
+	// so it can never be the bundle's own hash, and a digest swapped
+	// after sealing fails the recomputed BundleHash.
 	OutcomeDigest [32]byte `json:"outcomeDigest"`
 
 	// SealedBlockHeight is the L0 block height observed at the moment
@@ -392,8 +402,11 @@ type EvidenceBundle struct {
 // ComputeBundleHash computes the SHA256 hash of the bundle's immutable
 // content fields. The hash covers: intent/plan/outcome identifiers,
 // evidence level, chain hash, state root, policy decisions, approval
-// evidence, trust assumptions, external proofs, drift analysis, and
-// step outcomes. It deliberately excludes mutable fields (anchor
+// evidence, trust assumptions, external proofs, drift analysis, step
+// outcomes (each with its per-category gas), policy evaluations, and
+// (brief 28cd, L3124) the outcome digest, the anchor candidate digest,
+// the plan content hash and the sealed block height, each under its own
+// tag whether or not it is zero. It deliberately excludes mutable fields (anchor
 // status, bundle state, timestamps) so that re-computing the hash
 // after lifecycle transitions yields the same value.
 //
@@ -489,15 +502,21 @@ func (b *EvidenceBundle) ComputeBundleHash() ([32]byte, error) {
 		h.Write(data)
 	}
 
-	// GAP-V4 closure (spec §9.2.4): the anchor candidate digest is part
-	// of the bundle's immutable content for Anchored bundles; including
-	// it in the hash means an upgrade that mutates the candidate AFTER
-	// finalize would invalidate the BundleHash and the chain-verifier
-	// would catch the tampering.
-	var zero [32]byte
-	if b.AnchorCandidateDigest != zero {
-		h.Write(b.AnchorCandidateDigest[:])
-	}
+	// The sealed digests (brief 28cd, L3124). The outcome digest is what a portable package's OutcomeDigest is bound to and what the
+	// anchor orchestrator anchors as the outcome; the anchor candidate digest (GAP-V4, spec §9.2.4) is what the bundle commits to anchor;
+	// the plan content hash is what the approvals' plan hash is re-derived from (BindPlanHash); the sealed block height places the
+	// bundle's trust snapshots in time. Each is written under its own tag and ALWAYS, zero included: a section written only when non-zero
+	// would let a value be added to a bundle sealed without one and keep its hash.
+	h.Write([]byte("outcomeDigest"))
+	h.Write(b.OutcomeDigest[:])
+	h.Write([]byte("anchorCandidateDigest"))
+	h.Write(b.AnchorCandidateDigest[:])
+	h.Write([]byte("planContentHash"))
+	h.Write(b.PlanContentHash[:])
+	var height [8]byte
+	binary.BigEndian.PutUint64(height[:], b.SealedBlockHeight)
+	h.Write([]byte("sealedBlockHeight"))
+	h.Write(height[:])
 
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
