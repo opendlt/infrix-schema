@@ -51,8 +51,11 @@ func TestS28cuActorHasKeyIsReDecidedFromTheProvenPagesAndBooks(t *testing.T) {
 	lite := liteIdentityFor(liteHash[:20])
 	c := &ProvenRolesContext{Subject: Subject{Actor: "acc://alice.acme"},
 		ProvenPages: map[string]KeyPageEntries{
-			"acc://alice.acme/book/1": {Delegates: []string{"acc://alice.acme/book"}},
-			"acc://ops.acme/book/1":   {KeyHashes: [][]byte{liteHash[:]}, Delegates: []string{"acc://bob.acme"}},
+			"acc://alice.acme/book/1":     {},
+			"acc://team.acme/book/1":      {Delegates: []string{"acc://alice.acme/book"}},
+			"acc://alice.acme/sub/book/1": {},
+			"acc://vault.acme/book/1":     {Delegates: []string{"acc://alice.acme/sub/book"}},
+			"acc://ops.acme/book/1":       {KeyHashes: [][]byte{liteHash[:]}, Delegates: []string{"acc://bob.acme"}},
 		},
 		ProvenBooks: map[string]uint64{"acc://ops.acme/book": 1}}
 	want := func(args []string, v float64) {
@@ -62,11 +65,19 @@ func TestS28cuActorHasKeyIsReDecidedFromTheProvenPagesAndBooks(t *testing.T) {
 			t.Fatalf("actor::has_key%v = %v, %v; want %v", args, got, err, v)
 		}
 	}
-	want([]string{"acc://Alice.acme/book/1"}, 1)                 // the actor's own key book is a delegate
-	want([]string{"acc://ops.acme/book/1"}, 0)                   // (i) a proven page the actor holds no entry on
-	want([]string{"acc://ops.acme/book/1", "acc://bob.acme"}, 1) // the named identity's own URL is a delegate
-	want([]string{"acc://ops.acme/book/1", "acc://" + lite}, 1)  // a lite identity's key hash is on the page
-	want([]string{"acc://ops.acme/book/2"}, 0)                   // (ii) past the proven book's page count
+	want([]string{"acc://Alice.acme/book/1"}, 1)                   // a page of the actor's own key book
+	want([]string{"acc://team.acme/book/1"}, 1)                    // the actor's own key book is a delegate
+	want([]string{"acc://alice.acme/book/1", "acc://bob.acme"}, 0) // another identity holds no entry on alice's page
+	// an exact identity match: a parent or a sub-identity is another identity (main's ruling on HoldsPage)
+	want([]string{"acc://alice.acme/sub/book/1"}, 0)                         // alice does not hold her sub-identity's page
+	want([]string{"acc://alice.acme/book/1", "acc://alice.acme/sub"}, 0)     // the sub-identity does not hold its parent's page
+	want([]string{"acc://alice.acme/sub/book/1", "acc://alice.acme/sub"}, 1) // the sub-identity holds its own page
+	want([]string{"acc://vault.acme/book/1"}, 0)                             // a delegate to the sub-identity's book is not alice's
+	want([]string{"acc://vault.acme/book/1", "acc://alice.acme/sub"}, 1)     // it is the sub-identity's
+	want([]string{"acc://ops.acme/book/1"}, 0)                               // (i) a proven page the actor holds no entry on
+	want([]string{"acc://ops.acme/book/1", "acc://bob.acme"}, 1)             // the named identity's own URL is a delegate
+	want([]string{"acc://ops.acme/book/1", "acc://" + lite}, 1)              // a lite identity's key hash is on the page
+	want([]string{"acc://ops.acme/book/2"}, 0)                               // (ii) past the proven book's page count
 	for _, args := range [][]string{{"acc://alice.acme/book/2"}, {"acc://nobody.acme/book/1"}} {
 		if v, err := c.ResolveOperand(OpActorHasKey, args); !errors.Is(err, ErrAbsenceNotProvable) {
 			t.Fatalf("actor::has_key%v of an unproven page answered %v, %v; want ErrAbsenceNotProvable", args, v, err)

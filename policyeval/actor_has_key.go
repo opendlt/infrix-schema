@@ -25,8 +25,9 @@ type KeyPageEntries struct {
 
 // ResolveActorHasKey is actor::has_key(<page> [, <identity>]): TruthOperand(the key page exists AND the subject holds an entry on it), the
 // operand's claim ("caller's key page?", infrix-core L3196, main's ruling 2026-11-27). The subject is the evaluation's actor, or the identity the
-// optional second argument names. The subject holds an entry when an entry's delegate is the subject's own URL, when a delegate is a key book of
-// the subject's own identity, or, for a lite identity, when an entry's key hash is the lite identity's key hash (HoldsEntry).
+// optional second argument names. The subject holds the page when the page is in a key book of the subject's own identity, when an entry's
+// delegate is the subject's own URL, when a delegate is a key book of the subject's own identity, or, for a lite identity, when an entry's key
+// hash is the lite identity's key hash (HoldsPage).
 //
 // It is THE body the node's eval context answers it with (infrix-core subsystemdoors.NodeEvalContext over the node's live L0 network, core's
 // policy.ResolveActorHasKey is this function) and the verifier re-decides it with (ProvenRolesContext over the key pages and key books a bundle
@@ -60,25 +61,37 @@ func ResolveActorHasKey(read func(page string) (*KeyPageEntries, error), actor s
 	if entries == nil {
 		return TruthOperand(false), nil
 	}
-	return TruthOperand(HoldsEntry(*entries, subject)), nil
+	return TruthOperand(HoldsPage(page, *entries, subject)), nil
+}
+
+// HoldsPage reports whether identity holds the key page: the page is in a key book of the identity itself (the page URL is <identity>/<book>/<n>,
+// an exact match: a parent or a sub-identity of the page's identity is another identity and does not hold it), or the identity holds an entry
+// on it (HoldsEntry).
+func HoldsPage(page string, entries KeyPageEntries, identity string) bool {
+	id, ok := canonicalAccURL(identity)
+	if !ok {
+		return false
+	}
+	if book, _, ok := PageBookAndIndex(page); ok && ownerOf(book) == id {
+		return true
+	}
+	return HoldsEntry(entries, identity)
 }
 
 // HoldsEntry reports whether identity holds an entry on a page with these entries: a delegate is the identity's own URL, a delegate is a key book
-// of the identity's own ADI, or (a lite identity) an entry's key hash is the lite identity's key hash.
+// of the identity itself (<identity>/<book>, an exact match, never a parent's or a sub-identity's), or (a lite identity) an entry's key hash is
+// the lite identity's key hash.
 func HoldsEntry(entries KeyPageEntries, identity string) bool {
-	authority, path, err := splitAccURL(identity)
-	if err != nil {
+	id, ok := canonicalAccURL(identity)
+	if !ok {
 		return false
 	}
 	for _, d := range entries.Delegates {
-		da, dp, err := splitAccURL(d)
-		if err != nil {
-			continue
-		}
-		if da == authority && (dp == path || path == "") {
+		if dc, ok := canonicalAccURL(d); ok && (dc == id || ownerOf(dc) == id) {
 			return true
 		}
 	}
+	authority, path, _ := splitAccURL(identity)
 	if keyHash, ok := liteIdentityKeyHash(authority); ok && path == "" {
 		for _, h := range entries.KeyHashes {
 			if len(h) >= len(keyHash) && bytes.Equal(h[:len(keyHash)], keyHash) {
@@ -87,6 +100,27 @@ func HoldsEntry(entries KeyPageEntries, identity string) bool {
 		}
 	}
 	return false
+}
+
+// canonicalAccURL is an acc:// URL in one form (lower case, no trailing slash), and whether it is one.
+func canonicalAccURL(u string) (string, bool) {
+	authority, path, err := splitAccURL(u)
+	if err != nil {
+		return "", false
+	}
+	if path == "" {
+		return "acc://" + authority, true
+	}
+	return "acc://" + authority + "/" + path, true
+}
+
+// ownerOf is the identity an account URL in canonical form sits directly under (its URL without the last path segment); "" for an identity root.
+func ownerOf(canonical string) string {
+	i := strings.LastIndex(canonical, "/")
+	if i < len("acc://") {
+		return ""
+	}
+	return canonical[:i]
 }
 
 // splitAccURL splits an acc:// URL into its authority and path (both lower case, the path without leading or trailing slashes).
