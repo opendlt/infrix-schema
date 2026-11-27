@@ -7,6 +7,9 @@
 package policyeval
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -39,17 +42,49 @@ func TestS28coActorRoleIsAnsweredOnlyFromProvenRoles(t *testing.T) {
 	}
 }
 
-// ACTOR::HAS_KEY IS RE-DECIDED FROM THE PROVEN KEY PAGES THROUGH THE NODE'S OWN BODY (infrix-core L3196): a proven page answers 1; any other
-// account is refused (its absence is not provable), never answered 0.
-func TestS28ctActorHasKeyIsReDecidedFromTheProvenPages(t *testing.T) {
-	c := &ProvenRolesContext{Subject: Subject{Actor: "acc://alice.acme"}, ProvenPages: map[string]bool{"acc://alice.acme/book/1": true}}
-	if v, err := c.ResolveOperand(OpActorHasKey, []string{"acc://Alice.acme/book/1"}); err != nil || v != TruthOperand(true) {
-		t.Fatalf("actor::has_key of a proven page = %v, %v; want 1", v, err)
+// ACTOR::HAS_KEY IS RE-DECIDED FROM WHAT THE BUNDLE PROVES THROUGH THE NODE'S OWN BODY (infrix-core L3196, main's ruling 2026-11-27): the page
+// exists AND the subject (the actor, or the identity a second argument names) holds an entry on it. A proven page answers from its proven entries
+// (a subject absent from a proven page is a proven 0); a page past its proven book's page count is a proven 0; anything else is refused by name
+// (ErrAbsenceNotProvable), never answered 0.
+func TestS28cuActorHasKeyIsReDecidedFromTheProvenPagesAndBooks(t *testing.T) {
+	liteHash := sha256.Sum256([]byte("s28cu-lite-key"))
+	lite := liteIdentityFor(liteHash[:20])
+	c := &ProvenRolesContext{Subject: Subject{Actor: "acc://alice.acme"},
+		ProvenPages: map[string]KeyPageEntries{
+			"acc://alice.acme/book/1": {Delegates: []string{"acc://alice.acme/book"}},
+			"acc://ops.acme/book/1":   {KeyHashes: [][]byte{liteHash[:]}, Delegates: []string{"acc://bob.acme"}},
+		},
+		ProvenBooks: map[string]uint64{"acc://ops.acme/book": 1}}
+	want := func(args []string, v float64) {
+		t.Helper()
+		got, err := c.ResolveOperand(OpActorHasKey, args)
+		if err != nil || got != TruthOperand(v == 1) {
+			t.Fatalf("actor::has_key%v = %v, %v; want %v", args, got, err, v)
+		}
 	}
-	if v, err := c.ResolveOperand(OpActorHasKey, []string{"acc://alice.acme/book/2"}); err == nil {
-		t.Fatalf("actor::has_key of an unproven page answered %v", v)
+	want([]string{"acc://Alice.acme/book/1"}, 1)                 // the actor's own key book is a delegate
+	want([]string{"acc://ops.acme/book/1"}, 0)                   // (i) a proven page the actor holds no entry on
+	want([]string{"acc://ops.acme/book/1", "acc://bob.acme"}, 1) // the named identity's own URL is a delegate
+	want([]string{"acc://ops.acme/book/1", "acc://" + lite}, 1)  // a lite identity's key hash is on the page
+	want([]string{"acc://ops.acme/book/2"}, 0)                   // (ii) past the proven book's page count
+	for _, args := range [][]string{{"acc://alice.acme/book/2"}, {"acc://nobody.acme/book/1"}} {
+		if v, err := c.ResolveOperand(OpActorHasKey, args); !errors.Is(err, ErrAbsenceNotProvable) {
+			t.Fatalf("actor::has_key%v of an unproven page answered %v, %v; want ErrAbsenceNotProvable", args, v, err)
+		}
 	}
-	if _, err := (&ProvenRolesContext{}).ResolveOperand(OpActorHasKey, nil); err == nil {
-		t.Fatal("actor::has_key with no account answered")
+	for _, args := range [][]string{nil, {"acc://ops.acme/book/1", "bob"}, {"acc://ops.acme/book/1", "acc://bob.acme", "x"}} {
+		if v, err := c.ResolveOperand(OpActorHasKey, args); err == nil {
+			t.Fatalf("actor::has_key%v answered %v", args, v)
+		}
 	}
+	if v, err := (&ProvenRolesContext{ProvenPages: c.ProvenPages}).ResolveOperand(OpActorHasKey, []string{"acc://alice.acme/book/1"}); err == nil {
+		t.Fatalf("actor::has_key with no actor answered %v", v)
+	}
+}
+
+// liteIdentityFor is Accumulate's lite identity authority for a key hash prefix.
+func liteIdentityFor(prefix []byte) string {
+	h := hex.EncodeToString(prefix)
+	sum := sha256.Sum256([]byte(h))
+	return h + hex.EncodeToString(sum[28:])
 }

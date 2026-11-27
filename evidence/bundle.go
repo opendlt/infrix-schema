@@ -329,11 +329,16 @@ type EvidenceBundle struct {
 	KeyPageProofs       []json.RawMessage `json:"keyPageProofs,omitempty"`
 	GovernanceExecution json.RawMessage   `json:"governanceExecution,omitempty"`
 	// OperandPageProofs are infrix-verify govproof.KeyPageProof values for the key pages the bundle's policy evaluations read through
-	// actor::has_key (infrix-core L3196): each proves its page exists at a Directory-certified block under the pin, so the verifier re-decides
-	// actor::has_key through the node's own body (policyeval.ResolveActorHasKey over ProvenRolesContext.ProvenPages). They are apart from
-	// KeyPageProofs, which prove only the pages approvals name. An account's absence has no proof (Accumulate's receipts prove membership only),
-	// so a "false" answer carries none and stays unproven. Captured after the seal; not part of BundleHash; travels in BundleData.
+	// actor::has_key (infrix-core L3196): each proves its page and its entries at a Directory-certified block under the pin, so the verifier
+	// re-decides actor::has_key through the node's own body (policyeval.ResolveActorHasKey over ProvenRolesContext.ProvenPages), true or false
+	// (a subject absent from a proven page is a proven false). They are apart from KeyPageProofs, which prove only the pages approvals name.
+	// Captured after the seal; not part of BundleHash; travels in BundleData.
 	OperandPageProofs []json.RawMessage `json:"operandPageProofs,omitempty"`
+	// OperandBookProofs are infrix-verify govproof.KeyBookProof values for the key books of the pages an actor::has_key read found absent past
+	// the book's page count (infrix-core L3196): each proves the book's page count under the pin, so the verifier re-decides that false. An
+	// absent identity or key book has no proof (Accumulate's receipts prove membership only): such a false carries none and the verifier
+	// refuses it by name (policyeval.ErrAbsenceNotProvable). Captured after the seal; not part of BundleHash; travels in BundleData.
+	OperandBookProofs []json.RawMessage `json:"operandBookProofs,omitempty"`
 
 	// UncapturedProofs names every embedded proof the node owed this bundle and could not capture (main's ruling 2026-11-26 on the governance
 	// capture window): an approval Accumulate executed whose page proof at the executing block was lost to a node crash on a network that serves
