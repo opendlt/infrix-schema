@@ -33,6 +33,10 @@ type MerkleInclusionProof struct {
 // bundle's stored ChainHash it lets a verifier confirm the link was
 // present in the chain without seeing any other link content.
 //
+// THE LINK TREE IS NOT THE BATCH TREE (brief 28bk row 2). A link inclusion proof binds the link's POSITION (LinkIndex) in the chain, so it
+// keeps its positional construction (computeLinkMerkleRoot), which the browser verifier (infrix-nexus-web) and every exported package
+// already walk; the anchor batch tree (anchordata.go) hashes sorted, domain-tagged pairs and binds membership only.
+//
 // Important: EvidenceChain.ChainHash is defined as
 // SHA256(link1.ContentHash || link2.ContentHash || ...) -- a flat
 // concatenation, not a Merkle tree. The inclusion proof produced by
@@ -57,8 +61,8 @@ func GenerateMerkleInclusionProof(bundle *EvidenceBundle, linkIndex int) (*Merkl
 		hashes[i] = link.ContentHash
 	}
 
-	proof := buildMerkleProof(hashes, linkIndex)
-	root := ComputeEvidenceMerkleRoot(hashes)
+	proof := buildLinkMerkleProof(hashes, linkIndex)
+	root := computeLinkMerkleRoot(hashes)
 
 	return &MerkleInclusionProof{
 		BundleID:  bundle.ID,
@@ -94,13 +98,13 @@ func VerifyMerkleInclusionProof(proof *MerkleInclusionProof) bool {
 	return computed == proof.ChainHash
 }
 
-// buildMerkleProof constructs the sibling hashes needed to prove
+// buildLinkMerkleProof constructs the sibling hashes needed to prove
 // that the leaf at `index` is included in the tree built from
 // `hashes`. The tree is padded to the next power of 2 by repeating
 // the last leaf -- the same padding convention used by
-// ComputeEvidenceMerkleRoot so the two functions always agree on
+// computeLinkMerkleRoot so the two functions always agree on
 // the root.
-func buildMerkleProof(hashes [][32]byte, index int) [][32]byte {
+func buildLinkMerkleProof(hashes [][32]byte, index int) [][32]byte {
 	if len(hashes) == 0 {
 		return nil
 	}
@@ -135,4 +139,36 @@ func buildMerkleProof(hashes [][32]byte, index int) [][32]byte {
 		idx /= 2
 	}
 	return proof
+}
+
+// computeLinkMerkleRoot is the link tree's root: a binary tree over the links' content hashes, padded to the next power of 2 by repeating
+// the last hash, each node SHA-256(left || right) in position order; the zero hash for no input and the hash itself for one.
+func computeLinkMerkleRoot(hashes [][32]byte) [32]byte {
+	if len(hashes) == 0 {
+		return [32]byte{}
+	}
+	if len(hashes) == 1 {
+		return hashes[0]
+	}
+	n := len(hashes)
+	size := 1
+	for size < n {
+		size *= 2
+	}
+	padded := make([][32]byte, size)
+	copy(padded, hashes)
+	for i := n; i < size; i++ {
+		padded[i] = hashes[n-1]
+	}
+	for size > 1 {
+		for i := 0; i < size/2; i++ {
+			// privacy-fence-exempt: Merkle tree inner-node digest, not a cross-stream identity hash — the input bytes are already digests
+			h := sha256.New()
+			h.Write(padded[i*2][:])
+			h.Write(padded[i*2+1][:])
+			copy(padded[i][:], h.Sum(nil))
+		}
+		size /= 2
+	}
+	return padded[0]
 }

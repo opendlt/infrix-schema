@@ -8,6 +8,7 @@ package evidence
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -63,13 +64,42 @@ type DecisionProofRef struct {
 
 // ApprovalEvidenceRef is a JSON-compatible mirror of
 // pkg/workflow.ApprovalRef. See DecisionProofRef for the rationale.
+//
+// The signature fields (brief 28bd row 1, L2992) carry the approval exactly as the node's approval store verified it, so a verifier
+// can check it itself instead of crediting an identity string: SignedPreimage is the canonical approval preimage the signer signed
+// (domain "infrix/approval-signature/v2", the encoding pkg/workflow.TypedApproval.SigningPreimage writes), Signature and PublicKey
+// are the signature and the key that made it, SigType names the scheme (one of the ApprovalSigType constants), SignerPage is the
+// Accumulate key page the approval names, and SignatureMetadataHash is the Accumulate signature-metadata hash an accumulate-* type
+// signs beside the approval hash. A verifier reads the plan hash, stage, identity, role, key page and key from the PREIMAGE and
+// requires them to equal these fields; nothing here is credited because the node wrote it.
+//
+// Every signature field is omitted when empty, so a bundle exported before they existed (or an approval the store accepted
+// unsigned, test/devnet only) keeps its BundleHash; such an approval proves nothing and caps governance at G0.
 type ApprovalEvidenceRef struct {
 	StageID  string    `json:"stageId"`
 	Identity string    `json:"identity"`
 	Role     string    `json:"role"`
 	PlanHash [32]byte  `json:"planHash"`
 	SignedAt time.Time `json:"signedAt"`
+
+	Signature             []byte `json:"signature,omitempty"`
+	PublicKey             []byte `json:"publicKey,omitempty"`
+	SigType               string `json:"sigType,omitempty"`
+	SignerPage            string `json:"signerPage,omitempty"`
+	SignedPreimage        []byte `json:"signedPreimage,omitempty"`
+	SignatureMetadataHash []byte `json:"signatureMetadataHash,omitempty"`
 }
+
+// The approval signature schemes an ApprovalEvidenceRef can declare.
+//
+//   - ApprovalSigTypeInfrixEd25519: the original form, a bare Ed25519 signature over SignedPreimage.
+//   - ApprovalSigTypeAccumulatePrefix + an Accumulate user-signature type name (ed25519, btc, eth, legacyED25519, rcd1, btcLegacy,
+//     rsaSha256, ecdsaSha256): the network's own signature, made over sha256(SignatureMetadataHash || sha256(SignedPreimage)) the way
+//     Accumulate's executor verifies a user signature.
+const (
+	ApprovalSigTypeInfrixEd25519    = "infrix-ed25519"
+	ApprovalSigTypeAccumulatePrefix = "accumulate-"
+)
 
 // DriftAnalysisRef is a JSON-compatible mirror of
 // pkg/workflow.DriftAnalysis held inside an EvidenceBundle.
@@ -99,6 +129,13 @@ type StepOutcomeRef struct {
 	GhostGasPredicted uint64   `json:"ghostGasPredicted,omitempty"`
 	GhostGasDrift     float64  `json:"ghostGasDrift,omitempty"`
 	GhostStatusMatch  bool     `json:"ghostStatusMatch"`
+
+	// GasConsumed is what the step's work used when that differs from ActualGas (a contract call's ActualGas is the limit it reserved);
+	// GasByCategory is GasConsumed split by meter category (compute, storage, memory, host, crypto, ..., "uncategorized"), summing to it.
+	// Both mirror pkg/workflow.StepOutcome (brief 28bz, L3087), are omitted when the step recorded none, and are covered by BundleHash
+	// through the step-outcome section (brief 28cd, L3124).
+	GasConsumed   uint64            `json:"gasConsumed,omitempty"`
+	GasByCategory map[string]uint64 `json:"gasByCategory,omitempty"`
 }
 
 // EvidenceLevel controls the depth of evidence captured for a single
@@ -202,7 +239,27 @@ type ExternalProofRef struct {
 	TxHash      string   `json:"txHash,omitempty"`
 	BlockHeight uint64   `json:"blockHeight,omitempty"`
 	Verified    bool     `json:"verified"`
+	// Account and L0Proof are the EMBEDDED confirmation of the proof (brief 28bk row 3, main's ruling (a)): the Accumulate data account the
+	// WriteData holding ProofHash as one whole data item was written to, and the infrix-verify l0proof chain of that transaction to a certified
+	// Directory header. A verifier checks the chain against ITS OWN pin (a compiled network pin or one the relying party passes), never the
+	// bundle's, and credits the confirmation from it offline (source embedded-proof); a live re-read stays the other route. Raw bytes, so the
+	// bundle's canonical encoding never re-encodes the chain the hash covers; both omitted when empty, so every earlier bundle keeps its hash.
+	Account string `json:"account,omitempty"`
+	L0Proof []byte `json:"l0Proof,omitempty"`
 }
+
+// UncapturedProof names one proof the node owed a bundle and could not capture: its Kind (UncapturedGovernancePage), the Subject it would prove
+// (the page URL), the Accumulate transaction it belongs to, the block the proof had to be taken at when known, and why it was not captured.
+type UncapturedProof struct {
+	Kind    string `json:"kind"`
+	Subject string `json:"subject"`
+	TxHash  string `json:"txHash,omitempty"`
+	Height  uint64 `json:"height,omitempty"`
+	Reason  string `json:"reason"`
+}
+
+// UncapturedGovernancePage is the Kind of a governance page proof at the block that executed the approval, lost with its capture window.
+const UncapturedGovernancePage = "governance_page"
 
 // TrustAssumption records a trust profile that was relied upon during
 // execution, together with the outcome of its evaluation. Auditors use
@@ -249,6 +306,36 @@ type EvidenceBundle struct {
 	AnchorBlock   uint64       `json:"anchorBlockHeight,omitempty"`
 	AnchorDataIdx uint64       `json:"anchorDataIndex,omitempty"`
 
+	// AnchorInclusion proves this bundle's hash is a leaf of the batch root the anchor transaction wrote (a one-leaf batch for a
+	// bundle anchored alone). Set by the anchorer with the other anchor metadata; like them it is not part of BundleHash, and like
+	// them it travels in a portable package's BundleData, which ExportHash covers. Proof level L3 is credited from it, never from
+	// Anchor (brief 28bd row 2).
+	AnchorInclusion *AnchorInclusionProof `json:"anchorInclusion,omitempty"`
+
+	// StorageProofs and AccountProofs are the state proofs of the keys the bundle claims (state_inclusion.go): each key in its contract
+	// root (L1) and each contract root in StateRoot (L2). They are proofs ABOUT StateRoot, which BundleHash covers, so they are not hashed
+	// into BundleHash; they travel in BundleData, which ExportHash covers.
+	StorageProofs []StorageInclusionProof `json:"storageProofs,omitempty"`
+	AccountProofs []AccountInclusionProof `json:"accountProofs,omitempty"`
+
+	// L0Proof, KeyPageProofs and GovernanceExecution are the Accumulate proofs the node's capture service embeds after Directory certification (the native
+	// proof plan, phases 5 and 7; l0proof_refs.go). Like AnchorInclusion they are captured after the bundle is sealed, so they are not part of BundleHash;
+	// they travel in BundleData, which ExportHash covers. A verifier checks each against ITS OWN pinned network incarnation; nothing here selects a pin.
+	L0Proof             json.RawMessage   `json:"l0Proof,omitempty"`
+	KeyPageProofs       []json.RawMessage `json:"keyPageProofs,omitempty"`
+	GovernanceExecution json.RawMessage   `json:"governanceExecution,omitempty"`
+
+	// UncapturedProofs names every embedded proof the node owed this bundle and could not capture (main's ruling 2026-11-26 on the governance
+	// capture window): an approval Accumulate executed whose page proof at the executing block was lost to a node crash on a network that serves
+	// no historical state proofs. The bundle claims exactly what was captured; a verifier credits nothing for a named proof and names it. Captured
+	// after the seal like the proofs it stands in for, so not part of BundleHash; it travels in BundleData, which ExportHash covers.
+	UncapturedProofs []UncapturedProof `json:"uncapturedProofs,omitempty"`
+
+	// PlanContentHash is the hash of the plan's content before it was bound to its policy evaluations (brief 28bu row 2): the plan hash
+	// approvers sign is BindPlanHash(PlanContentHash, PolicyEvaluations), so a verifier recomputes it and holds every re-evaluated subject to
+	// the hash the approvals signed. Zero for a plan governed under no evaluation (its plan hash is its content hash).
+	PlanContentHash [32]byte `json:"planContentHash,omitempty"`
+
 	// AnchorCandidateDigest is the SHA-256 the bundle commits to
 	// anchor at finalize time. Required when Level == EvidenceLevelAnchored
 	// (spec §9.2.4: "anchor candidate contribution + durable digest
@@ -269,6 +356,11 @@ type EvidenceBundle struct {
 	TrustAssumptions []TrustAssumption  `json:"trustAssumptions,omitempty"`
 	ExternalProofs   []ExternalProofRef `json:"externalProofs,omitempty"`
 
+	// PolicyEvaluations carries, for every policy the plan was decided under, the content-addressed policy and the subject it was decided
+	// over, so a verifier re-runs the decision itself (policyeval, the node's own evaluator body) instead of reading PolicyDecisions. G0 is
+	// credited only from these re-evaluations (native proof plan phase 6, brief 28bi). Covered by BundleHash when present.
+	PolicyEvaluations []PolicyEvaluation `json:"policyEvaluations,omitempty"`
+
 	// Deprecated: The following fields duplicate data that lives
 	// authoritatively in OutcomeRecord. Use OutcomeRecordID to
 	// reference the canonical source. These fields are retained for
@@ -285,13 +377,23 @@ type EvidenceBundle struct {
 	BundleHash    [32]byte `json:"bundleHash"`
 	ChainVerified bool     `json:"chainVerified"`
 
+	// BundleHashRule names the rule BundleHash was computed under (brief 28cd, L3124). Finalize stamps BundleHashRuleSealedDigests on every
+	// bundle it seals; absent (BundleHashRuleLegacy) is a bundle sealed before the rule existed, whose hash, already anchored on Accumulate,
+	// must keep recomputing. The rule is itself hashed under the current rule, so a sealed bundle relabelled legacy no longer recomputes to
+	// its anchored hash. A verifier reports a legacy bundle's outcome digest as NOT sealed (BundleHashCoversSealedDigests). Any other value
+	// is refused.
+	BundleHashRule int `json:"bundleHashRule,omitempty"`
+
 	// OutcomeDigest is the deterministic digest of the canonical
 	// OutcomeRecord referenced by OutcomeRecordID. It is set by upstream
 	// callers (the executor hook, the mediator) before Finalize so the
 	// portable evidence package can carry an outcome-bound proof
 	// independent of bundle internals. Zero when no outcome is bound
-	// (subsystem-attributed bundles that produce their own artifact may
-	// re-use BundleHash via SetOutcomeDigest at finalize time).
+	// (a subsystem-attributed bundle whose artifact is its outcome binds
+	// the artifact's digest). Covered by BundleHash under the rule every
+	// bundle is sealed under (BundleHashRuleSealedDigests; brief 28cd,
+	// L3124), so it can never be the bundle's own hash, and a digest
+	// swapped after sealing fails the recomputed BundleHash.
 	OutcomeDigest [32]byte `json:"outcomeDigest"`
 
 	// SealedBlockHeight is the L0 block height observed at the moment
@@ -327,8 +429,12 @@ type EvidenceBundle struct {
 // ComputeBundleHash computes the SHA256 hash of the bundle's immutable
 // content fields. The hash covers: intent/plan/outcome identifiers,
 // evidence level, chain hash, state root, policy decisions, approval
-// evidence, trust assumptions, external proofs, drift analysis, and
-// step outcomes. It deliberately excludes mutable fields (anchor
+// evidence, trust assumptions, external proofs, drift analysis, step
+// outcomes (each with its per-category gas), policy evaluations, and
+// (brief 28cd, L3124; under BundleHashRuleSealedDigests, the rule every
+// bundle is sealed under) the rule number, the outcome digest, the anchor
+// candidate digest, the plan content hash and the sealed block height,
+// each under its own tag whether or not it is zero. It deliberately excludes mutable fields (anchor
 // status, bundle state, timestamps) so that re-computing the hash
 // after lifecycle transitions yields the same value.
 //
@@ -414,19 +520,70 @@ func (b *EvidenceBundle) ComputeBundleHash() ([32]byte, error) {
 		h.Write(data)
 	}
 
-	// GAP-V4 closure (spec §9.2.4): the anchor candidate digest is part
-	// of the bundle's immutable content for Anchored bundles; including
-	// it in the hash means an upgrade that mutates the candidate AFTER
-	// finalize would invalidate the BundleHash and the chain-verifier
-	// would catch the tampering.
-	var zero [32]byte
-	if b.AnchorCandidateDigest != zero {
+	// Policy evaluations (brief 28bi): tagged, so their bytes can never be read as another section's.
+	if len(b.PolicyEvaluations) > 0 {
+		data, err := json.Marshal(b.PolicyEvaluations)
+		if err != nil {
+			return [32]byte{}, fmt.Errorf("ComputeBundleHash: marshal PolicyEvaluations for bundle intent=%s plan=%s: %w", b.IntentID, b.PlanID, err)
+		}
+		h.Write([]byte("policyEvaluations"))
+		h.Write(data)
+	}
+
+	// The sealed digests (brief 28cd, L3124). The outcome digest is what a portable package's OutcomeDigest is bound to and what the
+	// anchor orchestrator anchors as the outcome; the anchor candidate digest (GAP-V4, spec §9.2.4) is what the bundle commits to anchor;
+	// the plan content hash is what the approvals' plan hash is re-derived from (BindPlanHash); the sealed block height places the
+	// bundle's trust snapshots in time. Each is written under its own tag and ALWAYS, zero included: a section written only when non-zero
+	// would let a value be added to a bundle sealed without one and keep its hash. The rule's number is written first, so a sealed bundle
+	// relabelled legacy recomputes to another hash. A legacy bundle keeps the rule it was anchored under: its anchor candidate, written only
+	// when non-zero, and none of the others.
+	switch b.BundleHashRule {
+	case BundleHashRuleSealedDigests:
+		var rule [8]byte
+		binary.BigEndian.PutUint64(rule[:], uint64(b.BundleHashRule))
+		h.Write([]byte("bundleHashRule"))
+		h.Write(rule[:])
+		h.Write([]byte("outcomeDigest"))
+		h.Write(b.OutcomeDigest[:])
+		h.Write([]byte("anchorCandidateDigest"))
 		h.Write(b.AnchorCandidateDigest[:])
+		h.Write([]byte("planContentHash"))
+		h.Write(b.PlanContentHash[:])
+		var height [8]byte
+		binary.BigEndian.PutUint64(height[:], b.SealedBlockHeight)
+		h.Write([]byte("sealedBlockHeight"))
+		h.Write(height[:])
+	case BundleHashRuleLegacy:
+		var zero [32]byte
+		if b.AnchorCandidateDigest != zero {
+			h.Write(b.AnchorCandidateDigest[:])
+		}
+	default:
+		return [32]byte{}, fmt.Errorf("ComputeBundleHash: bundle intent=%s plan=%s names bundle hash rule %d, which no verifier defines", b.IntentID, b.PlanID, b.BundleHashRule)
 	}
 
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
 	return result, nil
+}
+
+// The bundle hash rules (EvidenceBundle.BundleHashRule; brief 28cd, L3124).
+//
+//   - BundleHashRuleLegacy: a bundle sealed before the rule was named. Its hash covers the anchor candidate digest when non-zero and
+//     NOT the outcome digest, the plan content hash, the sealed block height or a zero anchor candidate; it is kept so that a bundle
+//     already anchored on Accumulate still recomputes to its anchored hash, and a verifier reports what it leaves unsealed.
+//   - BundleHashRuleSealedDigests: the rule Finalize seals every bundle under; it covers the rule number, the outcome digest, the anchor
+//     candidate digest, the plan content hash and the sealed block height, each under its own tag, zero included.
+const (
+	BundleHashRuleLegacy        = 0
+	BundleHashRuleSealedDigests = 2
+	CurrentBundleHashRule       = BundleHashRuleSealedDigests
+)
+
+// BundleHashCoversSealedDigests reports whether b's BundleHash covers its outcome digest, anchor candidate digest, plan content hash and
+// sealed block height; false for a legacy bundle, whose outcome digest a verifier must not report as sealed.
+func (b *EvidenceBundle) BundleHashCoversSealedDigests() bool {
+	return b.BundleHashRule == BundleHashRuleSealedDigests
 }
 
 // SetAnchorCandidate stamps the anchor candidate digest the bundle
@@ -482,6 +639,11 @@ func (b *EvidenceBundle) Finalize() error {
 		}
 	}
 	b.Type = string(TypeEvidenceBundleObject)
+	// a bundle sealed here for the first time is sealed under the current rule; one already sealed keeps its rule, so Finalize stays
+	// idempotent and a legacy bundle keeps its anchored hash (brief 28cd, L3124)
+	if b.BundleHash == ([32]byte{}) && b.BundleHashRule == BundleHashRuleLegacy {
+		b.BundleHashRule = CurrentBundleHashRule
+	}
 	hash, hashErr := b.ComputeBundleHash()
 	if hashErr != nil {
 		return fmt.Errorf("Finalize: %w", hashErr)
