@@ -240,6 +240,19 @@ type ExternalProofRef struct {
 	L0Proof []byte `json:"l0Proof,omitempty"`
 }
 
+// UncapturedProof names one proof the node owed a bundle and could not capture: its Kind (UncapturedGovernancePage), the Subject it would prove
+// (the page URL), the Accumulate transaction it belongs to, the block the proof had to be taken at when known, and why it was not captured.
+type UncapturedProof struct {
+	Kind    string `json:"kind"`
+	Subject string `json:"subject"`
+	TxHash  string `json:"txHash,omitempty"`
+	Height  uint64 `json:"height,omitempty"`
+	Reason  string `json:"reason"`
+}
+
+// UncapturedGovernancePage is the Kind of a governance page proof at the block that executed the approval, lost with its capture window.
+const UncapturedGovernancePage = "governance_page"
+
 // TrustAssumption records a trust profile that was relied upon during
 // execution, together with the outcome of its evaluation. Auditors use
 // the assumption list to understand which external systems or
@@ -303,6 +316,12 @@ type EvidenceBundle struct {
 	L0Proof             json.RawMessage   `json:"l0Proof,omitempty"`
 	KeyPageProofs       []json.RawMessage `json:"keyPageProofs,omitempty"`
 	GovernanceExecution json.RawMessage   `json:"governanceExecution,omitempty"`
+
+	// UncapturedProofs names every embedded proof the node owed this bundle and could not capture (main's ruling 2026-11-26 on the governance
+	// capture window): an approval Accumulate executed whose page proof at the executing block was lost to a node crash on a network that serves
+	// no historical state proofs. The bundle claims exactly what was captured; a verifier credits nothing for a named proof and names it. Captured
+	// after the seal like the proofs it stands in for, so not part of BundleHash; it travels in BundleData, which ExportHash covers.
+	UncapturedProofs []UncapturedProof `json:"uncapturedProofs,omitempty"`
 
 	// PlanContentHash is the hash of the plan's content before it was bound to its policy evaluations (brief 28bu row 2): the plan hash
 	// approvers sign is BindPlanHash(PlanContentHash, PolicyEvaluations), so a verifier recomputes it and holds every re-evaluated subject to
